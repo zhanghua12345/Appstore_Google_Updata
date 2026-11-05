@@ -12,7 +12,6 @@ __pycache__/
 审核截图*.jpg
 审核截图*.jpeg
 提交报告-*
-/*.json
 !/apps.json
 /*.png
 /*.jpg
