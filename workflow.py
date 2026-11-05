@@ -32,6 +32,7 @@ CREDENTIAL_STEPS = {"appstore": 7, "googleplay": 8}
 PLATFORMS = {"appstore", "googleplay"}
 KINDS = {"coins", "bag", "membership"}
 PROFILE_FILE = "平台资料.json"
+PROFILE_TEMPLATE_FILE = "App资料模板.json"
 PROFILE_FIELDS = (
     "App", "App Store Bundle ID", "App Store Connect API Issuer ID",
     "App Store Connect API Key", "App Store ID", "App Store p8文件名",
@@ -166,12 +167,12 @@ class Task:
 
     def init_profile(self, replace=False):
         """Open a new intake with the tracked, empty profile shape."""
-        template = self.root / "平台资料空白模板.json"
+        template = self.root / PROFILE_TEMPLATE_FILE
         if not template.is_file():
-            raise WorkflowError("缺少远程跟踪的 平台资料空白模板.json")
+            raise WorkflowError(f"缺少远程跟踪的 {PROFILE_TEMPLATE_FILE}")
         blank = read_json(template)
         if not isinstance(blank, dict) or tuple(blank) != PROFILE_FIELDS or any(value != "" for value in blank.values()):
-            raise WorkflowError("平台资料空白模板.json 的字段或空值不符合入口格式")
+            raise WorkflowError(f"{PROFILE_TEMPLATE_FILE} 的字段或空值不符合入口格式")
         path = self.root / PROFILE_FILE
         if path.exists() and not replace:
             raise WorkflowError("平台资料.json 已存在；新任务请使用 profile-init --replace，旧文件会备份")

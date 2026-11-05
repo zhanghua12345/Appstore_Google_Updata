@@ -12,7 +12,10 @@ __pycache__/
 审核截图*.jpg
 审核截图*.jpeg
 提交报告-*
+/平台资料.json
+/*.json
 !/apps.json
+!/App资料模板.json
 /*.png
 /*.jpg
 /*.jpeg

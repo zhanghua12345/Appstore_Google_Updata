@@ -537,7 +537,7 @@ class ProfileFirstTest(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name) / "project"
         self.root.mkdir()
-        shutil.copyfile(PROJECT / "平台资料空白模板.json", self.root / "平台资料空白模板.json")
+        shutil.copyfile(PROJECT / workflow.PROFILE_TEMPLATE_FILE, self.root / workflow.PROFILE_TEMPLATE_FILE)
         self.task = workflow.Task(self.root)
         self.task.init_profile()
         self.path = self.root / workflow.PROFILE_FILE

@@ -2,7 +2,7 @@
 
 向项目智能体提供文字、表格或图片，按 [AGENTS.md](./AGENTS.md) 执行：
 
-1. 新任务先运行 `status`、`inventory`，再运行 `python3 -B workflow.py profile-init --replace`。工具从已跟踪的[空白模板](./平台资料空白模板.json)生成根目录 `平台资料.json`；旧资料备份到项目外，不自动带入。
+1. 新任务先运行 `status`、`inventory`。若用户已明确上传本次 `平台资料.json`，直接运行 `profile`；否则运行 `python3 -B workflow.py profile-init --replace`，从已跟踪的[App 资料模板](./App资料模板.json)生成根目录 `平台资料.json`。旧资料备份到项目外，不自动带入。
 2. 在 `平台资料.json` 填 App 和需要的平台资料：只做 App Store 就填 Apple 字段和根目录购买页图片文件名，只做 Google Play 就填 Google 字段，两平台都做才填两组。对应的 `.p8` 或服务账号 JSON 放到根目录。运行 `python3 -B workflow.py profile`，直到返回 `ready: true`；首次检查未齐全时停在资料步骤，不进入商品核对和制表。
 3. 资料齐全后，智能体调用 `start --input ... --replace` 记录本次商品，自动沿用资料表中的 App 和平台。之后核对完整商品表及候选 ID、确认前缀，再运行 `prepare-excel` 生成待确认 Excel。该阶段不写远端。
 4. 展示 Excel 后选择实际提交平台，运行 `choose-submit`；只读检查、最终 Excel 确认和提交前检查齐全后，才按授权平台上传。
