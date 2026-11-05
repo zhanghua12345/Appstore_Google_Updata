@@ -3,6 +3,7 @@
 *.p8
 *service-account*.json
 待确认-*.xlsx
+待提交-*.xlsx
 当前任务.json
 当前任务.tmp
 __pycache__/

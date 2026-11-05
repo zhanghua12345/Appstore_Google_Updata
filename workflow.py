@@ -31,6 +31,15 @@ LAST_STEP = 9
 CREDENTIAL_STEPS = {"appstore": 7, "googleplay": 8}
 PLATFORMS = {"appstore", "googleplay"}
 KINDS = {"coins", "bag", "membership"}
+PROFILE_FILE = "平台资料.json"
+PROFILE_FIELDS = (
+    "App", "App Store Bundle ID", "App Store Connect API Issuer ID",
+    "App Store Connect API Key", "App Store ID", "App Store p8文件名",
+    "App Store 使用图片文件名", "Google Play Android 包名",
+    "Google Play 服务账号 JSON文件名",
+)
+APPLE_PROFILE_FIELDS = PROFILE_FIELDS[1:7]
+GOOGLE_PROFILE_FIELDS = PROFILE_FIELDS[7:9]
 
 
 class WorkflowError(ValueError):
@@ -85,6 +94,16 @@ def bare_product_id(item):
         return f"coins_{first}_{suffix}"
     stem = "bag" if kind == "bag" else "vip"
     return f"{stem}_week_{first}_{item['renewal_price']}_{suffix}"
+
+
+def demo_reference_name(app: str, item: dict) -> str:
+    suffix = str(item.get("revision", 1))
+    if item["kind"] == "coins":
+        label = f"Coins {item['price']}_{suffix}"
+    else:
+        kind = "Weekly Coin Bag" if item["kind"] == "bag" else "Weekly VIP Membership"
+        label = f"{kind} {item['intro_price']}_{item['renewal_price']}_{suffix}"
+    return f"{app} - {label}"
 
 
 class Task:
@@ -144,6 +163,133 @@ class Task:
         state["steps"]["6"] = {"name": STEP_NAMES[6], "confirmed": True,
                                    "data": {"mode": "submit", "deferred": [], "notes": ""}}
         return self.save(state)
+
+    def init_profile(self, replace=False):
+        """Open a new intake with the tracked, empty profile shape."""
+        template = self.root / "平台资料空白模板.json"
+        if not template.is_file():
+            raise WorkflowError("缺少远程跟踪的 平台资料空白模板.json")
+        blank = read_json(template)
+        if not isinstance(blank, dict) or tuple(blank) != PROFILE_FIELDS or any(value != "" for value in blank.values()):
+            raise WorkflowError("平台资料空白模板.json 的字段或空值不符合入口格式")
+        path = self.root / PROFILE_FILE
+        if path.exists() and not replace:
+            raise WorkflowError("平台资料.json 已存在；新任务请使用 profile-init --replace，旧文件会备份")
+        backup = None
+        if path.exists():
+            directory = self.credential_dir / "profile-backups"
+            directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+            directory.chmod(0o700)
+            backup = directory / f"profile-{uuid.uuid4().hex}.json"
+            shutil.copyfile(path, backup)
+            backup.chmod(0o600)
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps(blank, ensure_ascii=False, indent=2) + "\n",
+                             encoding="utf-8")
+        temporary.chmod(0o600)
+        temporary.replace(path)
+        return {"file": str(path), "ready": False, "backup": str(backup) if backup else None}
+
+    def inspect_intake_profile(self):
+        """Only the filled platform's fields gate the rest of a new task."""
+        path = self.root / PROFILE_FILE
+        if not path.is_file():
+            return {}, [], ["先运行 profile-init 生成空白平台资料.json"], {}
+        profile = read_json(path)
+        if not isinstance(profile, dict) or not any(name in profile for name in PROFILE_FIELDS[1:]):
+            raise WorkflowError("平台资料.json 不是九字段空白模板；新任务请先运行 profile-init --replace")
+        for name in PROFILE_FIELDS:
+            value = profile.get(name, "")
+            if not isinstance(value, str) or len(value) > 4096 or "\n" in value:
+                raise WorkflowError(f"{name} 必须是单行文字；私钥正文只保留在凭据文件中")
+            profile[name] = value.strip()
+        selected = []
+        if any(profile[name] for name in APPLE_PROFILE_FIELDS):
+            selected.append("appstore")
+        if any(profile[name] for name in GOOGLE_PROFILE_FIELDS):
+            selected.append("googleplay")
+        missing = []
+        if not profile["App"]:
+            missing.append("App")
+        if not selected:
+            missing.append("至少填写一组 App Store 或 Google Play 资料")
+        for platform, fields in (("appstore", APPLE_PROFILE_FIELDS), ("googleplay", GOOGLE_PROFILE_FIELDS)):
+            if platform in selected:
+                missing.extend(name for name in fields if not profile[name])
+        if "appstore" in selected and profile["App Store ID"] and not profile["App Store ID"].isdigit():
+            missing.append("App Store ID：填写数字 App Store Connect App ID")
+        if "googleplay" in selected and profile["Google Play Android 包名"] and not re.fullmatch(
+                r"[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+", profile["Google Play Android 包名"]):
+            missing.append("Google Play Android 包名：格式无效")
+        files = {}
+        for platform, field, suffix in (("appstore", "App Store p8文件名", ".p8"),
+                                        ("googleplay", "Google Play 服务账号 JSON文件名", ".json")):
+            if platform not in selected or not profile[field]:
+                continue
+            name = profile[field]
+            if Path(name).name != name or not name.lower().endswith(suffix):
+                missing.append(f"{field}：只填写根目录中的 {suffix} 文件名")
+                continue
+            file = self.root / name
+            if not file.is_file() or file.is_symlink():
+                missing.append(f"{field}：根目录未找到文件")
+                continue
+            if platform == "googleplay":
+                try:
+                    key = read_json(file)
+                    if key.get("type") != "service_account" or not key.get("private_key") or not key.get("client_email"):
+                        raise ValueError
+                except (ValueError, OSError, AttributeError):
+                    missing.append(f"{field}：文件不是有效的服务账号 JSON")
+                    continue
+            files[platform] = file
+        if "appstore" in selected and profile["App Store 使用图片文件名"]:
+            name = profile["App Store 使用图片文件名"]
+            image = self.root / name
+            if Path(name).name != name or image.is_symlink() or not image.is_file() or image.suffix.lower() not in {".png", ".jpg", ".jpeg"}:
+                missing.append("App Store 使用图片文件名：请填写根目录中的 PNG/JPEG 文件名")
+            else:
+                try:
+                    from PIL import Image
+                    with Image.open(image) as opened:
+                        opened.verify()
+                    files["image"] = image
+                except (OSError, ValueError):
+                    missing.append("App Store 使用图片文件名：图片无法读取")
+        return profile, selected, missing, files
+
+    def start_from_profile(self, source, items, replace=False):
+        profile, platforms, missing, files = self.inspect_intake_profile()
+        if missing:
+            raise WorkflowError("请先补齐平台资料.json：" + "；".join(dict.fromkeys(missing)))
+        state = self.start(source, items, replace)
+        state["profile_first"] = True
+        state["profile_sha256"] = digest(self.root / PROFILE_FILE)
+        state["steps"]["2"] = {"name": STEP_NAMES[2], "confirmed": True, "data": {"app": profile["App"]}}
+        state["steps"]["3"] = {"name": STEP_NAMES[3], "confirmed": True, "data": {"platforms": platforms}}
+        if "appstore" in platforms:
+            image = self.copy_to_root(files["image"])
+            state["steps"]["5"]["data"] = {
+                "screenshots": [image.name], "images": [{"file": image.name, "sha256": digest(image)}],
+                "content_checked": False,
+            }
+            state["steps"]["7"]["data"] = {"credentials": {
+                "issuer_id": profile["App Store Connect API Issuer ID"],
+                "key_id": profile["App Store Connect API Key"], "app_id": profile["App Store ID"],
+                "bundle_id": profile["App Store Bundle ID"], "p8_path": str(files["appstore"]),
+            }}
+        if "googleplay" in platforms:
+            state["steps"]["8"]["data"] = {"credentials": {
+                "package": profile["Google Play Android 包名"],
+                "service_account_path": str(files["googleplay"]),
+            }}
+        return self.save(state)
+
+    def require_current_profile(self, state):
+        if state.get("profile_first"):
+            path = self.root / PROFILE_FILE
+            if not path.is_file() or digest(path) != state.get("profile_sha256"):
+                raise WorkflowError("平台资料.json 已修改；请先运行 profile 重新核对并导入")
 
     @staticmethod
     def current(state):
@@ -283,6 +429,7 @@ class Task:
     def preview(self):
         """Show complete candidate IDs after the App name is recorded."""
         state = self.load()
+        self.require_current_profile(state)
         data = state["steps"]["1"]["data"]
         columns = ["类别", "ID", "一次性价", "首周价", "续订价"]
         app = state["steps"]["2"]["data"].get("app")
@@ -323,7 +470,8 @@ class Task:
         periods = sorted({item["period"] for item in data["items"] if item.get("period")})
         return {"step": 1, "columns": columns, "rows": rows, "app": app,
                 "currency": data.get("currency", "-"), "renewal_periods": periods,
-                "question": "以上商品解读和完整候选 ID 是否正确？要上传 App Store、Google Play，还是两个平台？"}
+                "question": "以上商品解读和完整候选 ID 是否正确？" if state["steps"]["3"]["confirmed"]
+                else "以上商品解读和完整候选 ID 是否正确？要上传 App Store、Google Play，还是两个平台？"}
 
     def resume(self):
         state = self.load()
@@ -333,6 +481,7 @@ class Task:
 
     def prerequisites(self, step):
         state = self.load()
+        self.require_current_profile(state)
         if state["status"] == "paused":
             raise WorkflowError("任务已暂停，请先继续当前任务")
         active = self.active_platforms(state)
@@ -447,7 +596,60 @@ class Task:
         state["steps"]["6"] = {"name": STEP_NAMES[6], "confirmed": True, "data": data}
         return self.save(state)
 
-    def credentials(self, platform, config):
+    def prepare_excel(self):
+        """Build a review workbook before deciding which store to submit to."""
+        state = self.load()
+        self.require_current_profile(state)
+        if not state["steps"]["1"]["confirmed"] or not state["steps"]["2"]["confirmed"]:
+            raise WorkflowError("先确认本次商品和 App，再生成 Excel")
+        app = state["steps"]["2"]["data"]["app"]
+        items = state["steps"]["1"]["data"]["items"]
+        if any(not item.get("reference_name") for item in items):
+            self.invalidate(state, 1)
+            for item in items:
+                item.setdefault("reference_name", demo_reference_name(app, item))
+            state["steps"]["1"]["confirmed"] = True
+            state["steps"]["2"]["confirmed"] = True
+            self.save(state)
+        state = self.load()
+        if not state["steps"]["3"]["confirmed"]:
+            self.set_step(3, {"platforms": ["appstore", "googleplay"]})
+        state = self.load()
+        if not state["steps"]["4"]["confirmed"]:
+            self.set_step(4, {"enabled": True, "prefix": normalize_prefix(app.lower())})
+        state = self.load()
+        if state["steps"]["6"]["data"].get("mode") != "excel_only":
+            self.arrange("只做Excel")
+        return self.check_intake()
+
+    def choose_submission(self, platforms):
+        """Select write targets after showing Excel without changing its contents."""
+        state = self.load()
+        workbook = self.verify_workbook(state)
+        if not workbook["shown"]:
+            raise WorkflowError("先展示本次 Excel，再选择实际提交平台")
+        formatted = set(state["steps"]["3"]["data"].get("platforms", []))
+        selected = set(platforms)
+        if not selected or not selected <= formatted:
+            raise WorkflowError("提交平台须为 Excel 支持的 App Store、Google Play 或两者")
+        state["steps"]["6"]["data"] = {"mode": "submit", "deferred": sorted(formatted - selected), "notes": ""}
+        state["steps"]["6"]["confirmed"] = True
+        screenshot = state["steps"]["5"]["data"]
+        state["steps"]["5"]["confirmed"] = "appstore" not in selected or bool(
+            screenshot.get("content_checked") and screenshot.get("images"))
+        for platform, step in CREDENTIAL_STEPS.items():
+            state["steps"][str(step)]["confirmed"] = platform not in selected
+            if platform not in selected:
+                state["steps"][str(step)]["data"]["deferred"] = True
+        state["steps"]["9"]["confirmed"] = False
+        state["authorization"] = None
+        state["preflight"] = {}
+        state["status"] = "active"
+        self.save(state)
+        return {"platforms": sorted(selected), "file": str(self.root / workbook["file"]),
+                "authorized": False}
+
+    def credentials(self, platform, config, replace=False):
         state = self.load()
         if platform not in PLATFORMS:
             raise WorkflowError("未知平台")
@@ -458,7 +660,7 @@ class Task:
         if any(not isinstance(v, str) or len(v) > 4096 or "\n" in v for v in config.values()):
             raise WorkflowError("凭据标识应为单行文字，密钥正文请保留在本机文件中")
         data = state["steps"][str(step)]["data"]
-        config = {**data.get("credentials", {}), **config}
+        config = config if replace else {**data.get("credentials", {}), **config}
         for key in ("p8_path", "service_account_path"):
             if config.get(key):
                 path = Path(config[key]).expanduser()
@@ -556,6 +758,10 @@ class Task:
             temporary.write_text(json.dumps(records, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
             temporary.chmod(0o600)
             temporary.replace(path)
+        if state.get("profile_first"):
+            result = self.init_profile(replace=True)
+            self.path.unlink()
+            return {"status": "awaiting_profile", **result}
         return self.start(state["source"], state["steps"]["1"]["data"]["items"], replace=True)
 
     def credential_files(self, platform):
@@ -594,6 +800,118 @@ class Task:
                           "location": "根目录，确认后迁至本机凭据目录" if path.parent == self.root else "本机凭据目录"})
         return found
 
+    def platform_profile(self):
+        """Keep editable account identifiers separate from detected key files."""
+        path = self.root / PROFILE_FILE
+        if path.is_file() and "App Store Connect API Issuer ID" in read_json(path):
+            profile, platforms, missing, files = self.inspect_intake_profile()
+            if missing:
+                return {"file": str(path), "ready": False,
+                        "platforms": platforms, "missing": list(dict.fromkeys(missing))}
+            if self.path.is_file():
+                state = self.load()
+                if state.get("profile_first") and state.get("profile_sha256") != digest(path):
+                    if profile["App"] != state["steps"]["2"]["data"].get("app"):
+                        raise WorkflowError("App 已改变；请按新任务重新确认商品和 Product ID")
+                    if platforms != state["steps"]["3"]["data"].get("platforms"):
+                        self.set_step(3, {"platforms": platforms})
+                    if "appstore" in platforms:
+                        self.credentials("appstore", {
+                            "issuer_id": profile["App Store Connect API Issuer ID"],
+                            "key_id": profile["App Store Connect API Key"],
+                            "app_id": profile["App Store ID"],
+                            "bundle_id": profile["App Store Bundle ID"],
+                            "p8_path": str(files["appstore"]),
+                        }, replace=True)
+                        image = self.copy_to_root(files["image"])
+                        state = self.load()
+                        images = [{"file": image.name, "sha256": digest(image)}]
+                        if state["steps"]["5"]["data"].get("images") != images:
+                            self.invalidate(state, 5)
+                            state["steps"]["5"]["data"] = {
+                                "screenshots": [image.name], "images": images, "content_checked": False,
+                            }
+                            self.save(state)
+                    else:
+                        state = self.load()
+                        if state["steps"]["5"]["data"]:
+                            self.invalidate(state, 5)
+                            state["steps"]["5"]["data"] = {}
+                            self.save(state)
+                    if "googleplay" in platforms:
+                        self.credentials("googleplay", {
+                            "package": profile["Google Play Android 包名"],
+                            "service_account_path": str(files["googleplay"]),
+                        }, replace=True)
+                    state = self.load()
+                    state["profile_sha256"] = digest(path)
+                    self.save(state)
+            return {"file": str(path), "ready": True, "platforms": platforms,
+                    "apple_p8_found": "appstore" in files,
+                    "google_service_account_json_found": "googleplay" in files}
+        state = self.load()
+        app = state["steps"]["2"]["data"].get("app", "")
+        if not app:
+            raise WorkflowError("先记录本次 App，再生成平台资料文件")
+        path = self.root / PROFILE_FILE
+        existing = read_json(path) if path.is_file() else {}
+        if not isinstance(existing, dict):
+            raise WorkflowError("平台资料.json 须为 JSON 对象")
+        same_task = existing.get("_任务ID") == state["task_id"] and existing.get("App") == app
+        apple = state["steps"]["7"]["data"].get("credentials", {})
+        google = state["steps"]["8"]["data"].get("credentials", {})
+        source = existing if same_task else {
+            "App Store Connect App ID": apple.get("app_id", ""),
+            "Bundle ID": apple.get("bundle_id", ""),
+            "App Store Connect Issuer ID": apple.get("issuer_id", ""),
+            "App Store Connect Key ID": apple.get("key_id", ""),
+            "App Store p8文件名": Path(apple["p8_path"]).name if apple.get("p8_path") else "",
+            "Google Play 包名": google.get("package", ""),
+            "Google Play 服务账号JSON文件名": Path(google["service_account_path"]).name
+            if google.get("service_account_path") else "",
+        }
+        apple_files = {file["name"] for file in self.credential_files("appstore")
+                       if Path(file["path"]).parent == self.root}
+        google_files = {file["name"] for file in self.credential_files("googleplay")
+                        if Path(file["path"]).parent == self.root}
+        def selected(name, available):
+            value = source.get(name, "")
+            if not isinstance(value, str):
+                raise WorkflowError(f"{name} 须为文件名")
+            return value if value in available else next(iter(available)) if len(available) == 1 else ""
+        apple_name = selected("App Store p8文件名", apple_files)
+        google_name = selected("Google Play 服务账号JSON文件名", google_files)
+        profile = {"_任务ID": state["task_id"], "App": app}
+        for name in ("App Store Connect App ID", "Bundle ID", "App Store Connect Issuer ID",
+                     "App Store Connect Key ID", "Google Play 包名"):
+            value = source.get(name, "")
+            if not isinstance(value, str):
+                raise WorkflowError(f"{name} 须为文字")
+            profile[name] = value.strip()
+        profile.update({
+            "App Store p8文件是否上传": bool(apple_files), "App Store p8文件名": apple_name,
+            "Google Play 服务账号JSON文件是否上传": bool(google_files),
+            "Google Play 服务账号JSON文件名": google_name,
+        })
+        if same_task:
+            self.credentials("appstore", {key: value for key, value in {
+                "app_id": profile["App Store Connect App ID"], "bundle_id": profile["Bundle ID"],
+                "issuer_id": profile["App Store Connect Issuer ID"],
+                "key_id": profile["App Store Connect Key ID"],
+                "p8_path": str(self.root / apple_name) if apple_name else "",
+            }.items() if value}, replace=True)
+            self.credentials("googleplay", {key: value for key, value in {
+                "package": profile["Google Play 包名"],
+                "service_account_path": str(self.root / google_name) if google_name else "",
+            }.items() if value}, replace=True)
+        if existing != profile:
+            temporary = path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            temporary.chmod(0o600)
+            temporary.replace(path)
+        return {"file": str(path), "apple_p8_found": bool(apple_files),
+                "google_service_account_json_found": bool(google_files)}
+
     def accept_credential_file(self, platform, selected):
         selected = str(Path(selected).expanduser().resolve())
         candidates = {entry["path"] for entry in self.credential_files(platform)}
@@ -608,6 +926,7 @@ class Task:
             raise WorkflowError("无效的预检请求")
         step = CREDENTIAL_STEPS[platform]
         state = self.load() if phase == "access" else self.prerequisites(step if phase == "initial" else LAST_STEP + 1)
+        self.require_current_profile(state)
         if phase == "final":
             workbook = self.verify_workbook(state)
             auth = state.get("authorization")
@@ -662,9 +981,11 @@ class Task:
     def check_intake(self):
         """Collect every outstanding input before creating the review workbook."""
         state = self.load()
+        self.require_current_profile(state)
         if "appstore" in self.active_platforms(state) and all(
                 state["steps"][str(step)]["confirmed"] for step in range(1, 5)):
-            self.screenshots(count_failure=False)
+            chosen_images = [image["file"] for image in state["steps"]["5"]["data"].get("images", [])]
+            self.screenshots(files=chosen_images if state.get("profile_first") else None, count_failure=False)
             state = self.load()
         missing = []
         for step in range(1, 5):
@@ -758,7 +1079,7 @@ class Task:
         for merged in list(plan.merged_cells.ranges):
             plan.unmerge_cells(str(merged))
         plan.delete_rows(1, plan.max_row)
-        plan.append([f"本次 App：{app}；目标平台：{', '.join(platforms)}；本次执行：{', '.join(self.active_platforms(state)) or '只生成 Excel'}；未提交"])
+        plan.append([f"本次 App：{app}；兼容平台：{', '.join(platforms)}；实际提交平台以本次授权为准；未提交"])
         plan.append(["类别", "Product ID", "英文参考名称", "一次性/首周 USD", "续订 USD", "周期", "截图", "原始 ID"])
         ids = set()
         for item in state["steps"]["1"]["data"]["items"]:
@@ -781,8 +1102,12 @@ class Task:
             row = list(templates[kind])
             row[0] = None if kind == "coins" else f"{'Bag' if kind == 'bag' else 'Membership'} Week {first}_{renewal}_{suffix}"
             row[1], row[2] = pid, reference
-            image = item.get("screenshot") or (state["steps"]["5"]["data"].get("screenshots") or [None])[0]
-            if "appstore" in self.active_platforms(state) and image not in state["steps"]["5"]["data"].get("screenshots", []):
+            screenshot_data = state["steps"]["5"]["data"]
+            verified_images = screenshot_data.get("screenshots", []) if screenshot_data.get("content_checked") else []
+            requested_image = item.get("screenshot")
+            image = (requested_image if requested_image in verified_images else None) if requested_image else (
+                verified_images[0] if verified_images else None)
+            if "appstore" in self.active_platforms(state) and not image:
                 raise WorkflowError("商品的截图尚未完成根目录及内容核对")
             row[5] = image
             row[6] = row[6].replace("$59.99", "$" + first).replace("$119.99", "$" + (renewal or first))
@@ -841,6 +1166,7 @@ class Task:
         return {"file": str(path), "products": len(ids)}
 
     def verify_workbook(self, state):
+        self.require_current_profile(state)
         workbook = state.get("workbook")
         if not workbook or workbook["revision"] != state["revision"]:
             raise WorkflowError("本次 Excel 尚未生成或前面的步骤已改变")
@@ -874,6 +1200,7 @@ class Task:
 
     def can_submit(self):
         state = self.load()
+        self.require_current_profile(state)
         workbook = self.verify_workbook(state)
         auth = state.get("authorization")
         active = self.active_platforms(state)
@@ -984,8 +1311,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=ROOT)
     sub = parser.add_subparsers(dest="action", required=True)
-    for name in ("status", "inventory", "suggestions", "preview", "pause", "resume", "generate", "mark-shown", "check-content", "check-intake", "can-submit", "enable-cache"):
+    for name in ("status", "inventory", "suggestions", "preview", "pause", "resume", "generate", "mark-shown", "check-content", "check-intake", "can-submit", "enable-cache", "profile", "prepare-excel"):
         sub.add_parser(name)
+    p = sub.add_parser("profile-init"); p.add_argument("--replace", action="store_true")
     p = sub.add_parser("later"); p.add_argument("--step", type=int, choices=(1, 2, 3, 4, 5, 7, 8, 9), required=True)
     p = sub.add_parser("clear-cache"); p.add_argument("--all", action="store_true")
     p = sub.add_parser("start"); p.add_argument("--input", type=Path, required=True); p.add_argument("--replace", action="store_true")
@@ -996,6 +1324,7 @@ def main():
     p = sub.add_parser("preflight"); p.add_argument("platform", choices=sorted(PLATFORMS)); p.add_argument("--phase", choices=["access", "initial", "final"], default="initial")
     p = sub.add_parser("approve"); p.add_argument("--message", required=True)
     p = sub.add_parser("arrange"); p.add_argument("--message", required=True)
+    p = sub.add_parser("choose-submit"); p.add_argument("platforms", nargs="+", choices=sorted(PLATFORMS))
     sub.add_parser("serve").add_argument("--port", type=int, default=8790)
     args = parser.parse_args()
     task = Task(args.root)
@@ -1005,7 +1334,8 @@ def main():
             serve(args.root, args.port)
             return 0
         if args.action == "start":
-            data = read_json(args.input); result = task.start(data["source"], data["items"], args.replace)
+            data = read_json(args.input); result = task.start_from_profile(data["source"], data["items"], args.replace)
+        elif args.action == "profile-init": result = task.init_profile(args.replace)
         elif args.action == "confirm":
             data = read_json(args.input) if args.input else task.load()["steps"][str(args.step)]["data"]
             result = task.set_step(args.step, data)
@@ -1016,6 +1346,9 @@ def main():
         elif args.action == "preflight": result = task.preflight(args.platform, args.phase)
         elif args.action == "approve": result = task.approve(args.message)
         elif args.action == "arrange": result = task.arrange(args.message)
+        elif args.action == "choose-submit": result = task.choose_submission(args.platforms)
+        elif args.action == "profile": result = task.platform_profile()
+        elif args.action == "prepare-excel": result = task.prepare_excel()
         elif args.action == "later": result = task.later(args.step)
         elif args.action == "check-intake": result = task.check_intake()
         elif args.action == "inventory": result = task.inventory()
@@ -1023,7 +1356,16 @@ def main():
         elif args.action == "clear-cache": result = task.clear_cache(args.all)
         elif args.action == "can-submit": result = {"ready": task.can_submit()}
         elif args.action == "status":
-            result = task.load(); result["current_step"] = task.current(result); result["suggestions"] = task.suggestions()
+            if task.path.is_file():
+                result = task.load(); result["current_step"] = task.current(result); result["suggestions"] = task.suggestions()
+            else:
+                profile_path = task.root / PROFILE_FILE
+                if profile_path.is_file() and "App Store Connect API Issuer ID" in read_json(profile_path):
+                    _, platforms, missing, _ = task.inspect_intake_profile()
+                    result = {"status": "awaiting_profile" if missing else "profile_ready",
+                              "profile": str(profile_path), "platforms": platforms, "missing": missing}
+                else:
+                    result = {"status": "no_task", "next": "profile-init"}
         else: result = getattr(task, args.action.replace("-", "_"))()
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0

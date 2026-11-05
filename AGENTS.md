@@ -1,6 +1,22 @@
 # 支付项上传智能体
 
-用户说上传到 App Store / appstore / 苹果或 Google Play / googlepaly / 谷歌时，按以下节点执行，用户本次明确要求优先。主入口是智能体对话；第七/八步账号标识优先用对话弹框一次收集多个输入项，本机资料页仅作备用和根目录文件检测，运行 python3 -B workflow.py serve 打开 http://127.0.0.1:8790。原 Google 单平台网页保持原用途，不冒充完整智能体。
+用户说上传到 App Store / appstore / 苹果或 Google Play / googlepaly / 谷歌时，按以下节点执行，用户本次明确要求优先。主入口是智能体对话；本机资料页仅作备用和根目录文件检测，运行 python3 -B workflow.py serve 打开 http://127.0.0.1:8790。原 Google 单平台网页保持原用途，不冒充完整智能体。
+
+## 最新入口：先填平台资料（优先于下文旧顺序）
+
+- 新商品任务仍先运行 `status`、`inventory`；随后运行 `python3 -B workflow.py profile-init --replace`，用远程已跟踪的空白模板在根目录创建本次 `平台资料.json`。已有资料文件先备份到项目外凭据目录，不自动沿用其账号、App 或平台。当前任务明确继续时不重置资料。
+- 先让用户填写 `平台资料.json`。只填 App Store 时必填 App、Bundle ID、Issuer ID、API Key ID、数字 App Store ID、根目录 `.p8` 文件名、根目录可读取的购买页 PNG/JPEG 文件名；Google 字段保持空白且不询问。只填 Google Play 时必填 App、Android 包名、根目录服务账号 JSON 文件名；Apple 字段和图片文件名保持空白且不询问。两个平台都填时两组都必填。模板里的 `App Store Connect API Key` 指 Key ID，不能填私钥正文。
+- 用户填完后运行 `python3 -B workflow.py profile`。只检查已填写的平台组；首次检查缺任一必填值或对应根目录文件时一次列清缺项并停在资料步骤，不开始商品核对、ID 生成、Excel 或在线上传。Apple 图片后续仍须目视核对内容。
+- 资料 `ready: true` 后才运行 `start --input ... --replace` 保存本次商品。`start` 从资料表记录 App、平台和本机文件路径，后续不重复询问；然后按下文商品核对、前缀、制表、在线预检、文件指纹授权和回读报告继续。下面与“先商品、后资料”或“缺凭据仍先制表”冲突的旧顺序，以本节为准。
+- `平台资料空白模板.json` 是可提交到远程的全空模板；`平台资料.json` 是本次实际资料，保持 Git 忽略。两者都不包含私钥正文。只读访问成功不代表写入资格，平台选择和资料齐全也不代表上传授权。
+
+## 最新简化入口（优先于下文旧资料提问顺序）
+
+- 仍先运行 `status`、`inventory`，确认本次 App 和完整商品表；App 名称是生成完整候选 ID 必需的信息。商品和候选 ID 只核对一次。合法 App 名自动形成本次候选前缀，用户已确认的前缀、App ID、包名、参考名和截图不重复问。没有可靠英文参考名时按 demo 同类商品格式生成，用户本次另有要求优先。
+- 商品与 App 确认后运行 `python3 -B workflow.py profile`，在根目录生成/同步可编辑的 `平台资料.json`。文件只含 App Store Connect App ID、Bundle ID、Issuer ID、Key ID、Google Play 包名、根目录凭据文件名及自动检测的布尔状态；不含私钥正文。Apple 检测 `.p8`，Google 只检测 `type=service_account` 的 JSON；文件名中的 “google” 不能把 `.p8` 当成 Google 凭据。布尔值表示找到本机文件，不能代表在线访问或写权限。已知字段从本次任务保存到资料文件，不重复问。用户修改资料文件后再运行 `profile` 导入。
+- 运行 `python3 -B workflow.py prepare-excel` 先生成双平台兼容的待确认 Excel，不因凭据未填而阻止制表。该阶段实际执行模式为只制表，不写远端。上传 App Store 时仍需根目录真实购买页截图；用户明确指定通用截图时关联该图并如实说明其审核风险，不按图中价格重复追问商品。
+- 展示 Excel 后再问本次实际提交 App Store、Google Play、两个平台或“稍后填写”。收到选择后运行 `python3 -B workflow.py choose-submit appstore`、`... googleplay` 或两者，再运行 `profile`、`check-intake`。缺账号标识或凭据时给出 `平台资料.json` 路径和准确缺项，让用户在文件中填写或放文件，不逐项弹框索取。数字 Apple App ID 已知时直接使用；仅有 Bundle ID 时可在 API 认证后查找 App ID，当前工具若尚不支持查找则报告该具体限制。
+- 展示的 Excel 与实际提交平台均明确后，按第九步取得绑定文件指纹及平台集合的最终授权；平台选择本身不隐含对旧版 Excel 的授权。材料补齐后完成只读预检，最终检查有效才写远端。下文关于密钥保护、截图关联、在线检查、报告及重试的安全规则继续适用。
 
 ## 文件与恢复
 

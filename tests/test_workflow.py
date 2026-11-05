@@ -149,6 +149,56 @@ class WorkflowTest(unittest.TestCase):
         self.assertEqual(state["steps"]["3"]["data"], {})
         self.assertFalse(state["steps"]["1"]["confirmed"])
 
+    def test_profile_detects_files_and_syncs_edited_identifiers(self):
+        self.task.set_step(2, {"app": "ExampleApp"})
+        (self.root / "AuthKey.p8").write_text("test key")
+        (self.root / "account.json").write_text(json.dumps({
+            "type": "service_account", "private_key": "test key", "client_email": "test@example.com"}))
+        result = self.task.platform_profile()
+        profile_path = Path(result["file"])
+        profile = json.loads(profile_path.read_text())
+        self.assertTrue(profile["App Store p8文件是否上传"])
+        self.assertTrue(profile["Google Play 服务账号JSON文件是否上传"])
+        self.assertNotIn("private_key", profile_path.read_text())
+        profile["Google Play 包名"] = "com.example.app"
+        profile["App Store Connect App ID"] = "123"
+        profile["App Store p8文件是否上传"] = False
+        profile_path.write_text(json.dumps(profile))
+        self.task.platform_profile()
+        state = self.task.load()
+        self.assertEqual(state["steps"]["8"]["data"]["credentials"]["package"], "com.example.app")
+        self.assertEqual(state["steps"]["7"]["data"]["credentials"]["app_id"], "123")
+        self.assertTrue(json.loads(profile_path.read_text())["App Store p8文件是否上传"])
+        self.task.start("新任务", copy.deepcopy(ITEMS), replace=True)
+        self.task.set_step(2, {"app": "OtherApp"})
+        self.task.platform_profile()
+        self.assertEqual(json.loads(profile_path.read_text())["Google Play 包名"], "")
+
+    def test_prepare_excel_then_choose_submission_without_authorization(self):
+        state = self.task.load()
+        for item in state["steps"]["1"]["data"]["items"]:
+            item.pop("reference_name")
+        self.task.save(state)
+        self.task.set_step(2, {"app": "ExampleApp"})
+        self.task.set_step(1, self.task.load()["steps"]["1"]["data"])
+        result = self.task.prepare_excel()
+        self.assertTrue(result["ready"])
+        state = self.task.load()
+        self.assertEqual(state["steps"]["3"]["data"]["platforms"], ["appstore", "googleplay"])
+        self.assertEqual(state["steps"]["4"]["data"]["prefix"], "exampleapp.")
+        self.assertEqual(self.task.active_platforms(state), [])
+        self.assertTrue(all(item["reference_name"].startswith("ExampleApp - ")
+                            for item in state["steps"]["1"]["data"]["items"]))
+        digest_before = state["workbook"]["sha256"]
+        self.task.mark_shown()
+        selected = self.task.choose_submission(["googleplay"])
+        self.assertEqual(selected["platforms"], ["googleplay"])
+        state = self.task.load()
+        self.assertEqual(state["workbook"]["sha256"], digest_before)
+        self.assertEqual(self.task.active_platforms(state), ["googleplay"])
+        self.assertIsNone(state["authorization"])
+        self.assertFalse(self.task.can_submit())
+
     def test_preanswered_app_platform_survive_same_interpretation_confirmation(self):
         self.task.set_step(2, {"app": "ChosenApp"})
         self.task.set_step(3, {"platforms": ["googleplay", "appstore"]})
@@ -479,6 +529,131 @@ class WorkflowTest(unittest.TestCase):
         config["bundle_id"] = "com.different.app"
         with mock.patch.object(workflow, "urlopen", side_effect=respond), self.assertRaises(workflow.WorkflowError):
             workflow.apple_read_check(config)
+
+
+class ProfileFirstTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / "project"
+        self.root.mkdir()
+        shutil.copyfile(PROJECT / "平台资料空白模板.json", self.root / "平台资料空白模板.json")
+        self.task = workflow.Task(self.root)
+        self.task.init_profile()
+        self.path = self.root / workflow.PROFILE_FILE
+
+    def fill(self, **values):
+        profile = json.loads(self.path.read_text())
+        profile.update(values)
+        self.path.write_text(json.dumps(profile, ensure_ascii=False))
+
+    def test_blank_profile_blocks_start_without_creating_task(self):
+        _, _, missing, _ = self.task.inspect_intake_profile()
+        self.assertIn("App", missing)
+        self.assertIn("至少填写一组 App Store 或 Google Play 资料", missing)
+        with self.assertRaises(workflow.WorkflowError):
+            self.task.start_from_profile("商品", copy.deepcopy(ITEMS))
+        self.assertFalse(self.task.path.exists())
+
+    def test_cli_start_waits_for_selected_profile_fields(self):
+        request = self.root / "request.json"
+        request.write_text(json.dumps({"source": "商品", "items": ITEMS}, ensure_ascii=False))
+        command = [sys.executable, "-B", str(PROJECT / "workflow.py"), "--root", str(self.root),
+                   "start", "--input", str(request), "--replace"]
+        blocked = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(blocked.returncode, 0)
+        self.assertIn("先补齐平台资料.json", json.loads(blocked.stdout)["error"])
+        self.assertFalse(self.task.path.exists())
+        (self.root / "google.json").write_text(json.dumps({
+            "type": "service_account", "private_key": "test", "client_email": "test@example.com"}))
+        self.fill(**{"App": "ExampleApp", "Google Play Android 包名": "com.example.app",
+                     "Google Play 服务账号 JSON文件名": "google.json"})
+        accepted = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(accepted.returncode, 0, accepted.stderr)
+        self.assertEqual(json.loads(accepted.stdout)["steps"]["3"]["data"]["platforms"], ["googleplay"])
+
+    def test_google_only_ignores_apple_fields_and_image(self):
+        (self.root / "google.json").write_text(json.dumps({
+            "type": "service_account", "private_key": "test", "client_email": "test@example.com"}))
+        self.fill(**{"App": "ExampleApp", "Google Play Android 包名": "com.example.app",
+                     "Google Play 服务账号 JSON文件名": "google.json"})
+        self.assertEqual(self.task.platform_profile()["platforms"], ["googleplay"])
+        state = self.task.start_from_profile("商品", copy.deepcopy(ITEMS))
+        self.assertEqual(state["steps"]["2"]["data"]["app"], "ExampleApp")
+        self.assertEqual(state["steps"]["3"]["data"]["platforms"], ["googleplay"])
+        self.assertEqual(state["steps"]["7"]["data"], {})
+        self.assertEqual(state["steps"]["8"]["data"]["credentials"]["package"], "com.example.app")
+        self.assertEqual(self.task.preview()["question"], "以上商品解读和完整候选 ID 是否正确？")
+        self.fill(**{"Google Play Android 包名": "com.example.changed"})
+        with self.assertRaises(workflow.WorkflowError):
+            self.task.preview()
+        self.assertTrue(self.task.platform_profile()["ready"])
+        self.assertEqual(self.task.load()["steps"]["8"]["data"]["credentials"]["package"], "com.example.changed")
+
+    def test_apple_only_requires_its_image_but_not_google(self):
+        (self.root / "AuthKey.p8").write_text("test key")
+        Image.new("RGB", (32, 32), "white").save(self.root / "purchase.jpg")
+        self.fill(**{"App": "ExampleApp", "App Store Connect API Issuer ID": "issuer",
+                     "App Store Connect API Key": "key-id", "App Store ID": "123",
+                     "App Store Bundle ID": "com.example.ios", "App Store p8文件名": "AuthKey.p8",
+                     "App Store 使用图片文件名": "purchase.jpg"})
+        self.assertEqual(self.task.platform_profile()["platforms"], ["appstore"])
+        state = self.task.start_from_profile("商品", copy.deepcopy(ITEMS))
+        self.assertEqual(state["steps"]["3"]["data"]["platforms"], ["appstore"])
+        self.assertEqual(state["steps"]["8"]["data"], {})
+        self.assertEqual(state["steps"]["5"]["data"]["screenshots"], ["purchase.jpg"])
+        self.assertFalse(state["steps"]["5"]["data"]["content_checked"])
+
+    def test_apple_profile_stops_at_first_check_without_image_file(self):
+        (self.root / "AuthKey.p8").write_text("test key")
+        self.fill(**{"App": "ExampleApp", "App Store Bundle ID": "com.example.ios",
+                     "App Store Connect API Issuer ID": "issuer", "App Store Connect API Key": "key-id",
+                     "App Store ID": "123", "App Store p8文件名": "AuthKey.p8"})
+        self.assertEqual(self.task.platform_profile()["missing"], ["App Store 使用图片文件名"])
+        with self.assertRaises(workflow.WorkflowError):
+            self.task.start_from_profile("商品", copy.deepcopy(ITEMS))
+        self.fill(**{"App Store 使用图片文件名": "missing.jpg"})
+        self.assertIn("根目录中的 PNG/JPEG", self.task.platform_profile()["missing"][0])
+        self.assertFalse(self.task.path.exists())
+
+    def test_partial_google_group_reports_only_google_missing_fields(self):
+        self.fill(**{"App": "ExampleApp", "Google Play Android 包名": "com.example.app"})
+        result = self.task.platform_profile()
+        self.assertFalse(result["ready"])
+        self.assertEqual(result["missing"], ["Google Play 服务账号 JSON文件名"])
+
+    def test_image_field_alone_selects_apple_and_lists_its_missing_fields(self):
+        self.fill(**{"App": "ExampleApp", "App Store 使用图片文件名": "purchase.jpg"})
+        result = self.task.platform_profile()
+        self.assertEqual(result["platforms"], ["appstore"])
+        self.assertIn("App Store Bundle ID", result["missing"])
+        self.assertIn("App Store p8文件名", result["missing"])
+        self.assertNotIn("Google Play Android 包名", result["missing"])
+
+    def test_filling_both_groups_requires_both_platforms(self):
+        self.fill(**{"App": "ExampleApp", "App Store Connect API Issuer ID": "issuer",
+                     "Google Play Android 包名": "com.example.app"})
+        result = self.task.platform_profile()
+        self.assertEqual(result["platforms"], ["appstore", "googleplay"])
+        self.assertIn("App Store Connect API Key", result["missing"])
+        self.assertIn("Google Play 服务账号 JSON文件名", result["missing"])
+
+    def test_new_blank_profile_preserves_previous_file_in_backup(self):
+        self.fill(**{"App": "PreviousApp"})
+        result = self.task.init_profile(replace=True)
+        self.assertEqual(json.loads(self.path.read_text())["App"], "")
+        self.assertEqual(json.loads(Path(result["backup"]).read_text())["App"], "PreviousApp")
+
+    def test_clear_cache_returns_profile_first_task_to_blank_intake(self):
+        (self.root / "google.json").write_text(json.dumps({
+            "type": "service_account", "private_key": "test", "client_email": "test@example.com"}))
+        self.fill(**{"App": "ExampleApp", "Google Play Android 包名": "com.example.app",
+                     "Google Play 服务账号 JSON文件名": "google.json"})
+        self.task.start_from_profile("商品", copy.deepcopy(ITEMS))
+        result = self.task.clear_cache()
+        self.assertEqual(result["status"], "awaiting_profile")
+        self.assertFalse(self.task.path.exists())
+        self.assertTrue(all(value == "" for value in json.loads(self.path.read_text()).values()))
 
 
 if __name__ == "__main__":
