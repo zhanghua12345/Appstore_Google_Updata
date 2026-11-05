@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" xmlns:dc="http://purl.org/dc/elements/1.1/">
+    <channel>
+        <title>AppleParty for macOS Changelog</title>
+        <description>Most recent changes with links to updates.</description>
+        <language>zh_CN</language>
+        <item>
+            <title>Version 3.8.0</title>
+            <sparkle:releaseNotesLink>https://37mobileteam.github.io/Sparkle/AppleParty-release.html</sparkle:releaseNotesLink>
+            <pubDate>2025-09-29</pubDate>
+            <enclosure
+                url="https://github.com/37MobileTeam/AppleParty/releases/download/3.8.0/AppleParty-v3.8.0.zip"
+                sparkle:shortVersionString="3.8.0"
+                sparkle:version="2025.09.29"
+                type="application/octet-stream"
+                sparkle:edSignature="f6uHCP1bv1HtNgW/SK2KTfpXxiHJ2gQgxI6UGKWpi4gouFe6VSi+i2zpmIZX1Yttja6SKncKzmhE0YjSR4r1Cg=="
+                length="21707613"
+            />
+            <sparkle:minimumSystemVersion>11.0</sparkle:minimumSystemVersion>
+        </item>
+    </channel>
+</rss>

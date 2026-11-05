@@ -1,0 +1,17 @@
+{
+  "name": "google-play-excel-uploader",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-contained build and runtime wrapper for the Google Play Excel uploader",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "node scripts/build-web.mjs",
+    "start": "node scripts/start-web.mjs",
+    "test": "npm run test:deployment && npm run test:web",
+    "test:deployment": "node --test scripts/tests/deployment.test.mjs",
+    "test:web": "python3 -m unittest discover -s web/tests -p 'test_*.py'"
+  }
+}

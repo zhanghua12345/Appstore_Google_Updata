@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Google Play 支付项上传</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="file-warning is-hidden" id="file-warning">
+    <div>
+      <strong>请通过本地服务打开页面</strong>
+      <p>当前打开的是 HTML 文件，无法连接上传接口。</p>
+      <a href="http://127.0.0.1:8787">打开 http://127.0.0.1:8787</a>
+    </div>
+  </div>
+
+  <header class="app-header">
+    <div class="app-header__inner">
+      <div class="brand">
+        <span class="brand__mark">GP</span>
+        <div>
+          <h1>Google Play 支付项上传</h1>
+          <p>Excel Catalog Workflow</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button class="help-button" id="help-button" type="button" title="使用说明" aria-label="打开使用说明">?</button>
+        <div class="server-state"><span></span>本机服务已连接</div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <nav class="step-nav" aria-label="上传步骤">
+      <button class="step-nav__item is-current" type="button" data-step="0">
+        <span class="step-number">1</span>
+        <span><strong>服务账号</strong><small>选择 App 与 JSON</small></span>
+      </button>
+      <button class="step-nav__item" type="button" data-step="1" disabled>
+        <span class="step-number">2</span>
+        <span><strong>上传 Excel</strong><small>预览并本地校验</small></span>
+      </button>
+      <button class="step-nav__item" type="button" data-step="2" disabled>
+        <span class="step-number">3</span>
+        <span><strong>检查差异</strong><small>只读读取 Google</small></span>
+      </button>
+      <button class="step-nav__item" type="button" data-step="3" disabled>
+        <span class="step-number">4</span>
+        <span><strong>自动提交</strong><small>确认一次，自动完成</small></span>
+      </button>
+    </nav>
+
+    <section class="wizard">
+      <div class="step-page" data-page="0">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">步骤 1 / 4</p>
+            <h2>选择 Google 服务账号</h2>
+            <p>App 与本地 service account JSON 可以按任意顺序选择。</p>
+          </div>
+          <span class="state-badge" id="credential-state">等待选择</span>
+        </div>
+
+        <div class="credential-controls">
+          <label class="field field--app">
+            <span>应用</span>
+            <select id="app-select">
+              <option value="">正在读取 App 配置…</option>
+            </select>
+          </label>
+          <label class="file-picker" for="credential-file">
+            <input id="credential-file" type="file" accept="application/json,.json">
+            <span class="file-picker__icon">↑</span>
+            <span><strong id="credential-file-title">选择 Google 凭证文件</strong><small>从当前电脑选择，最大 1 MB</small></span>
+            <span class="choose-label">选择文件</span>
+          </label>
+        </div>
+
+        <div class="data-section">
+          <div class="section-bar">
+            <div>
+              <h3>凭证数据</h3>
+              <p id="credential-caption">只显示账号归属和 Google Play 访问结果。</p>
+            </div>
+            <button class="quiet-button" id="check-credential-button" type="button" disabled>检查 Google 访问</button>
+          </div>
+          <div class="empty-state" id="credential-empty">请选择 App 和当前电脑上的服务账号 JSON</div>
+          <div class="table-scroll is-hidden" id="credential-table-wrap">
+            <table class="data-table credential-table">
+              <thead><tr><th>项目</th><th>当前信息</th><th>结果</th></tr></thead>
+              <tbody id="credential-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-page is-hidden" data-page="1">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">步骤 2 / 4</p>
+            <h2>上传支付项 Excel</h2>
+            <p>先核对格式示例，再上传同结构的工作簿。</p>
+          </div>
+          <button class="danger-quiet-button clear-table-button" type="button">清空表格</button>
+        </div>
+
+        <div class="data-section demo-section">
+          <div class="section-bar">
+            <div><h3>Excel 格式示例（不会上传）</h3><p>这里仅展示文件需要包含的主要字段，不属于当前任务数据。</p></div>
+            <a class="quiet-button" href="/demo.xlsx" download>↓ 下载格式示例.xlsx</a>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table catalog-table">
+              <thead id="demo-head"></thead>
+              <tbody id="demo-body"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="upload-section">
+          <div class="upload-settings">
+            <label class="field">
+              <span>Android 包名（来自 apps.json）</span>
+              <input id="package-input" value="" autocomplete="off" spellcheck="false" readonly>
+            </label>
+            <label class="check-field">
+              <input id="price-change-input" type="checkbox">
+              <span>允许修改已有一次性商品价格</span>
+            </label>
+          </div>
+          <label class="excel-picker" for="excel-file">
+            <input id="excel-file" type="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
+            <span class="excel-picker__icon">↑</span>
+            <span><strong id="excel-file-title">选择支付项 Excel</strong><small>选择后自动上传并本地校验，最大 20 MB</small></span>
+            <span class="choose-label">选择文件</span>
+          </label>
+        </div>
+
+        <div class="data-section">
+          <div class="section-bar">
+            <div><h3>已上传的支付项</h3><p id="excel-caption">校验结果和每行状态会保留在这里。</p></div>
+            <span class="state-badge" id="excel-state">等待上传</span>
+          </div>
+          <div class="empty-state" id="excel-empty">尚未上传 Excel</div>
+          <div class="table-scroll is-hidden" id="excel-table-wrap">
+            <table class="data-table catalog-table">
+              <thead><tr><th>Product ID</th><th>类型 / 周期</th><th>原价</th><th>首周价</th><th>本地校验 / 线上状态</th></tr></thead>
+              <tbody id="excel-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-page is-hidden" data-page="2">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">步骤 3 / 4</p>
+            <h2>检查 Google Play 差异</h2>
+            <p>这一页只读取线上数据，不会创建或修改支付项。</p>
+          </div>
+          <button class="danger-quiet-button clear-table-button" type="button">清空表格</button>
+        </div>
+
+        <div class="check-bar">
+          <div><strong id="plan-title">尚未检查差异</strong><span id="plan-subtitle">点击右侧按钮开始读取 Google Play。</span></div>
+          <button class="primary-button" id="run-plan-button" type="button">开始检查差异</button>
+        </div>
+        <div class="check-explanation" id="check-explanation">
+          <strong>为什么需要几分钟</strong>
+          <span>系统要从 Google Play 逐项读取商品与 Base plan 的存在、周期、文案、原价和激活状态，同时检查首周优惠是否存在和激活，并核对 Excel 价格对应的 Google 有效价格点。商品和优惠越多，读取时间越长；这里只读，不会修改线上数据。</span>
+        </div>
+        <div class="metric-row">
+          <div><span>检查项（商品 + 优惠）</span><strong id="metric-total">-</strong></div>
+          <div><span>线上一致</span><strong id="metric-noop">-</strong></div>
+          <div><span>需要同步</span><strong id="metric-actionable">-</strong></div>
+          <div><span>阻塞</span><strong id="metric-blocked">-</strong></div>
+        </div>
+        <div class="message-band is-hidden" id="plan-message"></div>
+
+        <div class="data-section">
+          <div class="section-bar"><div><h3>按 Product ID 汇总的线上差异</h3><p>原价和首周价合并显示，与上传结果日志保持一致。</p></div></div>
+          <div class="empty-state" id="plan-empty">尚未生成差异计划</div>
+          <div class="table-scroll is-hidden" id="plan-table-wrap">
+            <table class="data-table plan-table">
+              <thead><tr><th>Product ID</th><th>上传内容</th><th>需要处理</th><th>差异原因</th><th>状态</th></tr></thead>
+              <tbody id="plan-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="step-page is-hidden" data-page="3">
+        <div class="page-heading">
+          <div>
+            <p class="eyebrow">步骤 4 / 4</p>
+            <h2>自动提交到 Google Play</h2>
+            <p>确认一次后直接同步全部内容，结束时自动核对实际生效结果。</p>
+          </div>
+          <button class="danger-quiet-button clear-table-button" type="button">清空表格</button>
+        </div>
+
+        <div class="submit-summary">
+          <div class="progress-copy">
+            <span class="progress-label" id="submit-stage">等待提交</span>
+            <strong><span id="submit-remaining">0</span> 项待处理</strong>
+            <small>已成功 <span id="submit-successful">0</span> 项</small>
+          </div>
+          <div class="progress-track"><span id="progress-fill"></span></div>
+          <label class="field confirm-field">
+            <span>请输入包名</span>
+            <input id="confirm-package-input" placeholder="请输入包名" autocomplete="off" spellcheck="false">
+          </label>
+        </div>
+        <div class="message-band is-hidden" id="submit-message"></div>
+
+        <div class="data-section">
+          <div class="section-bar">
+            <div><h3>提交结果日志</h3><p>按 Product ID 汇总原价、首周价、上传结果和实际生效价格。</p></div>
+            <a class="quiet-button is-hidden" id="download-result" href="#" download>↓ 下载结果 Excel</a>
+          </div>
+          <div class="table-scroll">
+            <table class="data-table submit-log-table">
+              <thead><tr><th>Product ID</th><th>上传内容</th><th>当前进度</th><th>上传结果与价格</th></tr></thead>
+              <tbody id="submit-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <footer class="wizard-footer">
+        <button class="secondary-button" id="back-button" type="button" disabled>← 返回</button>
+        <div class="footer-status" id="footer-status">请先完成服务账号选择</div>
+        <button class="primary-button" id="next-button" type="button" disabled>下一步 →</button>
+        <button class="primary-button is-hidden" id="submit-button" type="button" disabled>提交</button>
+      </footer>
+    </section>
+
+    <section class="recent-section">
+      <div class="section-bar">
+        <div><h3>最近任务</h3><p>任务保存在本机，刷新页面不会丢失。</p></div>
+        <button class="quiet-button" id="refresh-jobs" type="button">↻ 刷新</button>
+      </div>
+      <div class="empty-state" id="recent-empty">还没有上传任务</div>
+      <div class="table-scroll is-hidden" id="recent-table-wrap">
+        <table class="data-table recent-table">
+          <thead><tr><th>文件</th><th>App / 包名</th><th>当前结果</th><th>数量</th><th>更新时间</th><th>操作</th></tr></thead>
+          <tbody id="recent-body"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <dialog class="help-dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="help-dialog__header">
+      <div>
+        <span>Google Play 支付项上传</span>
+        <h2 id="help-title">使用说明</h2>
+      </div>
+      <button class="icon-button" id="close-help-button" type="button" title="关闭" aria-label="关闭使用说明">×</button>
+    </div>
+    <ol class="help-steps">
+      <li><strong>服务账号</strong><span>App 和当前电脑上的 service account JSON 可按任意顺序选择；两项齐全后自动核对。</span></li>
+      <li><strong>上传 Excel</strong><span>先查看或下载格式示例，再填写包名并上传同结构的 Excel 做本地校验。</span></li>
+      <li><strong>检查差异</strong><span>逐项读取商品、Base plan、首周优惠、激活状态和有效价格点；出现阻塞项时必须返回修正。</span></li>
+      <li><strong>自动提交</strong><span>输入完全一致的包名并确认一次；服务端直接同步全部内容，异常时自动恢复，最后统一核对实际结果。</span></li>
+    </ol>
+    <div class="help-note">任务保存在这台 Mac。刷新页面不会停止正在运行的任务；更换凭证或清空表格会重置当前工作流。</div>
+    <div class="help-dialog__footer">
+      <button class="primary-button" id="understand-help-button" type="button">开始使用</button>
+    </div>
+  </dialog>
+
+  <div class="toast is-hidden" id="toast" role="status"></div>
+  <script src="app.js"></script>
+</body>
+</html>

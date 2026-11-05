@@ -1,0 +1,14 @@
+{
+  "DinReel": {
+    "name": "dinreel",
+    "pack": "com.dinereel.tv"
+  },
+  "MiniTV": {
+    "name": "minitv",
+    "pack": ""
+  },
+  "Epilora": {
+    "name": "epilora",
+    "pack": "com.epilora.drama.android"
+  }
+}

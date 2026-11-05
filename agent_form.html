@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>智能体 · 平台资料</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #192d42; background: #f2f5f9; }
+    * { box-sizing: border-box; } [hidden] { display: none !important; }
+    body { margin: 0; } main { max-width: 1080px; margin: 40px auto; padding: 0 22px 60px; }
+    header { display: flex; align-items: start; justify-content: space-between; gap: 20px; }
+    h1 { font-size: 27px; margin: 0 0 10px; } p { line-height: 1.7; }
+    .muted, small { color: #53687e; } .badge { display: inline-block; color: #175d52; background: #e0f3ed; padding: 6px 11px; border-radius: 20px; font-size: 13px; }
+    .card { background: white; border: 1px solid #dbe3ec; border-radius: 16px; padding: 26px; margin: 22px 0; box-shadow: 0 5px 18px #192d4205; }
+    h2 { font-size: 21px; margin: 0 0 9px; } .eyebrow { color: #126a62; font-size: 13px; font-weight: 700; margin-bottom: 7px; }
+    .privacy { border-left: 5px solid #1476cb; border-radius: 8px; background: #eaf4ff; color: #124779; padding: 16px 19px; margin: 20px 0; line-height: 1.8; }
+    .privacy strong { display: block; color: #073d72; margin-bottom: 4px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 19px; }
+    label { display: flex; flex-direction: column; gap: 8px; font-size: 14px; font-weight: 600; }
+    input, select, textarea { width: 100%; font: inherit; color: #20394e; background: #fff; border: 1px solid #bbcbd9; border-radius: 8px; padding: 12px; font-weight: 400; }
+    input:focus, select:focus, textarea:focus { outline: 3px solid #b9e0ff; outline-offset: 1px; border-color: #267bbd; }
+    select:disabled { background: #edf1f5; color: #65788b; cursor: not-allowed; }
+    select.file-ready { border-color: #16836e; background: #e6f6f0; box-shadow: 0 0 0 2px #bcebd9; }
+    textarea { min-height: 95px; resize: vertical; line-height: 1.7; }
+    .wide { grid-column: 1 / -1; } .cache { background: #eff8f4; border: 1px solid #b9dbcc; border-radius: 8px; padding: 13px; line-height: 1.7; margin: 16px 0; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    button { cursor: pointer; border: 1px solid #b8cad8; border-radius: 8px; padding: 11px 16px; color: #234359; background: white; font: inherit; font-size: 14px; }
+    button.primary { background: #176b63; border-color: #176b63; color: white; } button:hover { filter: brightness(.96); } button:disabled { opacity: .5; cursor: wait; }
+    .notes { border-top: 1px solid #e0e6ec; margin-top: 24px; padding-top: 22px; }
+    .message { background: #fff8e8; border: 1px solid #e6c983; border-radius: 10px; padding: 14px 18px; line-height: 1.7; white-space: pre-wrap; }
+    .result { margin-top: 12px; color: #1b5950; white-space: pre-wrap; font-size: 14px; line-height: 1.8; }
+    .path { overflow-wrap: anywhere; font-size: 13px; } .toolbar { display: flex; flex-wrap: wrap; gap: 9px; }
+    @media(max-width: 650px) { .grid { grid-template-columns: 1fr; } header { flex-direction: column; } .card { padding: 20px; } main { margin-top: 24px; } }
+  </style>
+</head>
+<body>
+<main>
+  <header><div><h1>平台资料</h1><div class="muted" id="target">正在读取本机任务…</div></div><div class="toolbar"><button id="refresh" type="button">重新检测根目录</button><button id="pause" type="button">暂停</button><button id="resume" type="button">继续任务</button></div></header>
+  <p class="path muted" id="root"></p>
+  <div class="message" id="message" role="status" aria-live="polite" hidden></div>
+  <div class="card" id="empty" hidden>请先在智能体对话确认本次 App 和平台。已有资料会按所选 App 读取，再由你确认。</div>
+
+  <form class="card" id="appstore" hidden autocomplete="off">
+    <div class="eyebrow">第七步 · APP STORE</div><h2>App Store .p8 文件</h2><span class="badge" id="appstore-status"></span>
+    <div class="privacy"><strong>本机资料 · 仅用于平台认证</strong><span class="privacy-copy"></span></div>
+    <div class="cache" id="appstore-cache" hidden>本次已保存部分 App Store 资料。</div>
+    <div class="grid">
+      <label class="wide">.p8 文件<select name="credential_file" aria-describedby="apple-file-tip" disabled></select><small id="apple-file-tip">根目录未检测到 .p8。请放入根目录，页面会自动检测。</small></label>
+    </div>
+    <div class="actions"><button class="primary" type="submit">确认使用此文件</button><button type="button" data-check="appstore">检查 App Store 访问</button><button type="button" data-later="7">稍后填写</button></div>
+    <div class="result" id="appstore-result" aria-live="polite"></div>
+    <div class="notes"><label>本次安排（可留空）<textarea name="notes" placeholder="例如：先跳过 App Store，只做 Excel；或先跳过 App Store，先提交 Google"></textarea></label><div class="actions"><button type="button" data-notes="appstore">保存本次安排</button></div><small>不需要填完整的平台资料，也可以先保存跳过或只做表格的安排。</small></div>
+  </form>
+
+  <form class="card" id="googleplay" hidden autocomplete="off">
+    <div class="eyebrow">第八步 · GOOGLE PLAY</div><h2>确认 Google Play 资料</h2><span class="badge" id="googleplay-status"></span>
+    <div class="privacy"><strong>本机资料 · 仅用于平台认证</strong><span class="privacy-copy"></span></div>
+    <div class="cache" id="googleplay-cache" hidden>已找到这个 App 的本机历史资料。请核对包名和 JSON，点击“确认使用这些资料”，无需重新提供。</div>
+    <div class="grid">
+      <label class="wide">Android 包名<input name="package" placeholder="com.example.app" spellcheck="false"></label>
+      <label class="wide">服务账号 JSON<select name="credential_file" aria-describedby="google-file-tip"></select><small id="google-file-tip">把服务账号 JSON 放在根目录，再重新检测。会识别服务账号文件，不会把普通配置 JSON 当成密钥；Google 不使用 .p8。</small></label>
+    </div>
+    <div class="actions"><button class="primary" type="submit">确认使用这些资料</button><button type="button" data-check="googleplay">检查 Google Play 访问</button><button type="button" data-later="8">稍后填写</button></div>
+    <div class="result" id="googleplay-result" aria-live="polite"></div>
+    <div class="notes"><label>本次安排（可留空）<textarea name="notes" placeholder="例如：先跳过 Google，先提交 App Store；或先只生成 Excel"></textarea></label><div class="actions"><button type="button" data-notes="googleplay">保存本次安排</button></div><small>跳过的平台保留为待办，之后说“继续”时按已保存的安排处理。</small></div>
+  </form>
+
+  <section class="card" id="next" hidden><h2>接下来</h2><p id="execution"></p><div id="screenshot-row"><p id="screenshot-status"></p><div class="actions"><button type="button" data-later="5">稍后填写</button></div></div><p class="muted">资料齐全后生成本次 Excel 供你确认；有缺项时一次列出，已填内容会保留。</p><div class="actions"><button type="button" class="primary" id="check-intake">检查资料并继续</button><button type="button" data-later="9">稍后填写</button><button type="button" id="continue-agent">保存并回到智能体继续</button></div><p class="path" id="workbook"></p></section>
+</main>
+<script>
+const token = '__FORM_TOKEN__';
+const labels = {appstore:'App Store', googleplay:'Google Play'};
+const fieldLabels = {issuer_id:'Issuer ID',key_id:'Key ID',p8_path:'.p8 文件',app_id:'数字 App ID',package:'Android 包名',service_account_path:'服务账号 JSON'};
+let latestState;
+const byId = id => document.getElementById(id);
+function message(text) { byId('message').textContent = text; byId('message').hidden = !text; }
+function render(state) {
+  if (latestState && (latestState.app !== state.app || latestState.task_id !== state.task_id)) {
+    for (const platform of ['appstore','googleplay']) {
+      const form = byId(platform);
+      form.reset();
+      form.querySelectorAll('[data-dirty]').forEach(input=>delete input.dataset.dirty);
+    }
+  }
+  latestState = state;
+  byId('target').textContent = state.app ? `${state.app} · 当前步骤 ${state.current_step} · ${state.status === 'paused' ? '已暂停' : '进度已保存'}` : '等待确认本次 App';
+  byId('root').textContent = `文件接收根目录：${state.root}`;
+  byId('empty').hidden = state.target_confirmed;
+  byId('next').hidden = !state.target_confirmed;
+  byId('screenshot-row').hidden = !state.platforms.includes('appstore');
+  byId('screenshot-status').textContent = state.screenshots.length ? `审核截图：${state.screenshots.join('、')}` : state.materials_later['5'] ? '审核截图：稍后填写' : '审核截图：待放入根目录';
+  for (const platform of ['appstore','googleplay']) {
+    const form = byId(platform);
+    const visible = state.target_confirmed && state.platforms.includes(platform);
+    form.hidden = !visible;
+    if (!visible) continue;
+    form.querySelector('.privacy-copy').textContent = state.privacy;
+    const config = state.credentials[platform] || {};
+    byId(`${platform}-cache`).hidden = !Object.keys(config).length;
+    byId(`${platform}-status`).textContent = state.materials_later[platform === 'appstore' ? '7' : '8'] ? '资料稍后填写' : state.active_platforms.includes(platform) ? '本次计划处理' : '暂缓处理 · 保留待办';
+    for (const [key,value] of Object.entries(config)) {
+      const input = form.elements.namedItem(key);
+      if (input && !input.dataset.dirty) input.value = value;
+    }
+    const select = form.elements.credential_file;
+    const previous = select.value;
+    const files = state.files[platform] || [];
+    const isApple = platform === 'appstore';
+    select.replaceChildren(new Option(files.length ? '请选择根目录文件' : isApple ? '根目录未检测到 .p8' : '根目录未检测到服务账号 JSON', ''));
+    for (const file of files) select.add(new Option(file.name, file.path));
+    const path = config[platform === 'appstore' ? 'p8_path' : 'service_account_path'];
+    const chosen = [...select.options].some(o => o.value === previous) && previous ? previous : path || '';
+    select.value = [...select.options].some(o => o.value === chosen) ? chosen : files.length === 1 ? files[0].path : '';
+    select.disabled = !files.length;
+    select.classList.toggle('file-ready', !!files.length);
+    if (isApple) byId('apple-file-tip').textContent = files.length ? files.length === 1 ? `已检测到 ${files[0].name}；请核对后使用。` : `已检测到 ${files.length} 个 .p8，请选择对应 Key ID 的文件。` : `根目录未检测到 .p8。请放入 ${state.root}，页面会自动检测。`;
+    if (!form.elements.notes.dataset.dirty) form.elements.notes.value = state.execution.notes || '';
+  }
+  byId('execution').textContent = state.execution.needs_agent ? '备注已保存，等待智能体理解具体要求后继续。' : state.execution.mode === 'excel_only' ? '本次只生成 Excel，不提交任何平台。' : `本次处理：${state.active_platforms.map(p=>labels[p]).join('、') || '暂不提交任何平台'}。其他已选平台保留待办。`;
+  byId('workbook').textContent = state.workbook ? `待确认文件已保存在根目录：${state.workbook.file}` : '';
+}
+async function request(action, data={}) {
+  document.querySelectorAll('button').forEach(b=>b.disabled=true);
+  try {
+    const response = await fetch(action ? '/api/action' : '/api/state', {method: action ? 'POST' : 'GET', headers:{'Content-Type':'application/json','X-Form-Token':token}, ...(action ? {body:JSON.stringify({action,...data})} : {})});
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || '读取失败，请补齐资料后继续');
+    render(action ? result.state : result);
+    if (action) {
+      const item = result.result;
+      message(item.message || (item.ready === false ? `仍需补充：\n${(item.missing || []).map((f,i)=>`${i+1}. ${typeof f === 'object' ? f.item : fieldLabels[f] || f}`).join('\n') || item.error || '平台所需资料'}\n已填内容会保留。` : item.file ? 'Excel 已保存到根目录。请回到智能体对话核对文件后确认。' : item.ready ? '读取检查通过；提交前还会再次检查，实际写入权限以平台结果为准。' : '已保存'));
+    }
+    return result;
+  } catch (error) { message(error.message); }
+  finally { document.querySelectorAll('button').forEach(b=>b.disabled=false); }
+}
+for (const platform of ['appstore','googleplay']) {
+  const form = byId(platform);
+  form.addEventListener('input', e=>e.target.dataset.dirty='true');
+  form.addEventListener('submit', async e=>{
+    e.preventDefault();
+    const config = {};
+    for (const key of platform === 'appstore' ? [] : ['package']) config[key]=form.elements.namedItem(key).value.trim();
+    if (platform === 'appstore' && !form.elements.credential_file.value) {
+      message('根目录未检测到 .p8，请放入文件后等待检测。');
+      return;
+    }
+    await request('save',{platform, config, file:form.elements.credential_file.value, notes:form.elements.notes.value});
+  });
+}
+document.querySelectorAll('[data-check]').forEach(button=>button.addEventListener('click',()=>request('check',{platform:button.dataset.check,phase:'access'})));
+document.querySelectorAll('[data-notes]').forEach(button=>button.addEventListener('click',()=>request('arrange',{notes:byId(button.dataset.notes).elements.notes.value})));
+document.querySelectorAll('[data-later]').forEach(button=>button.addEventListener('click',()=>request('later',{step:Number(button.dataset.later)})));
+byId('refresh').addEventListener('click',()=>request());
+byId('pause').addEventListener('click',()=>request('pause'));
+byId('resume').addEventListener('click',()=>request('resume'));
+byId('check-intake').addEventListener('click',()=>request('check-intake'));
+byId('continue-agent').addEventListener('click',()=>request('continue-agent'));
+setInterval(async()=>{
+  const apple = byId('appstore');
+  if (apple.hidden) return;
+  try {
+    const response = await fetch('/api/state',{headers:{'X-Form-Token':token}});
+    if (response.ok) render(await response.json());
+  } catch (_) { /* Keep the current form values while the local server is unavailable. */ }
+},5000);
+request();
+</script>
+</body>
+</html>

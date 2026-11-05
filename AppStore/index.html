@@ -1,0 +1,1397 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AppStore 商品操作台</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: #f3f5f7;
+      --surface: #ffffff;
+      --surface-muted: #f8f9fb;
+      --text: #17202a;
+      --muted: #66717f;
+      --border: #d8dee6;
+      --border-strong: #b8c1cc;
+      --accent: #1268d6;
+      --accent-dark: #0d4f9f;
+      --success: #18794e;
+      --success-bg: #e9f7f0;
+      --warning: #925d00;
+      --warning-bg: #fff5dc;
+      --danger: #b42318;
+      --danger-bg: #fff0ee;
+      --shadow: 0 10px 28px rgba(20, 32, 48, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--page);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      font-size: 15px;
+      line-height: 1.5;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+      letter-spacing: 0;
+    }
+
+    button,
+    input,
+    select {
+      min-height: 40px;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:focus-visible,
+    input:focus-visible,
+    select:focus-visible,
+    textarea:focus-visible,
+    a:focus-visible {
+      outline: 3px solid rgba(18, 104, 214, 0.22);
+      outline-offset: 2px;
+    }
+
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.96);
+    }
+
+    .header-inner {
+      width: min(1440px, calc(100% - 32px));
+      min-height: 68px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .brand {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand img {
+      width: 42px;
+      height: 42px;
+      border-radius: 8px;
+      object-fit: cover;
+      box-shadow: 0 2px 8px rgba(20, 32, 48, 0.16);
+    }
+
+    .brand strong,
+    .brand span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .brand strong {
+      font-size: 17px;
+    }
+
+    .brand span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .header-status {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .status-tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 9px;
+      border: 1px solid #b8dfcb;
+      border-radius: 999px;
+      background: var(--success-bg);
+      color: var(--success);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    main {
+      width: min(1440px, calc(100% - 32px));
+      margin: 24px auto 48px;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+      align-items: start;
+      gap: 20px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 58px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-header h1,
+    .panel-header h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .panel-header p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .step {
+      padding: 20px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .step:last-child {
+      border-bottom: 0;
+    }
+
+    .step-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 14px;
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .step-number {
+      display: inline-grid;
+      width: 26px;
+      height: 26px;
+      place-items: center;
+      border-radius: 50%;
+      background: #e8eef7;
+      color: var(--accent-dark);
+      font-size: 13px;
+      flex: 0 0 auto;
+    }
+
+    .drop-zone {
+      min-height: 132px;
+      padding: 20px;
+      display: grid;
+      place-items: center;
+      border: 1px dashed var(--border-strong);
+      border-radius: 6px;
+      background: var(--surface-muted);
+      text-align: center;
+      transition: border-color 140ms ease, background 140ms ease;
+    }
+
+    .drop-zone.is-dragging {
+      border-color: var(--accent);
+      background: #eef5ff;
+    }
+
+    .drop-zone p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    .file-button,
+    .primary-button,
+    .secondary-button,
+    .text-button {
+      border: 1px solid transparent;
+      border-radius: 6px;
+      font-weight: 650;
+    }
+
+    .file-button,
+    .primary-button {
+      padding: 9px 16px;
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .file-button:hover,
+    .primary-button:hover {
+      background: var(--accent-dark);
+    }
+
+    .secondary-button {
+      padding: 9px 14px;
+      border-color: var(--border-strong);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .secondary-button:hover {
+      background: var(--surface-muted);
+    }
+
+    .text-button {
+      min-height: 32px;
+      padding: 4px 8px;
+      background: transparent;
+      color: var(--accent-dark);
+    }
+
+    .text-button:hover {
+      background: #eef5ff;
+    }
+
+    .file-input {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+
+    .file-list {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .file-row {
+      min-width: 0;
+      min-height: 42px;
+      padding: 7px 9px 7px 12px;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: #fff;
+    }
+
+    .file-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-weight: 600;
+    }
+
+    .file-meta {
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .remove-file {
+      width: 30px;
+      min-height: 30px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 22px;
+      line-height: 1;
+    }
+
+    .remove-file:hover {
+      background: var(--danger-bg);
+      color: var(--danger);
+    }
+
+    .field-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .field {
+      min-width: 0;
+    }
+
+    .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .field label,
+    .field-label {
+      display: block;
+      margin-bottom: 6px;
+      color: #394452;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+    }
+
+    input[type="text"],
+    input[type="number"],
+    select {
+      padding: 8px 10px;
+    }
+
+    textarea {
+      min-height: 196px;
+      padding: 12px;
+      resize: vertical;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 13px;
+      line-height: 1.55;
+    }
+
+    .segmented {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .segmented label {
+      position: relative;
+      min-width: 0;
+      margin: 0;
+    }
+
+    .segmented input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .segmented span {
+      min-height: 40px;
+      padding: 8px 9px;
+      display: grid;
+      place-items: center;
+      border-right: 1px solid var(--border);
+      background: #fff;
+      color: #495565;
+      cursor: pointer;
+      text-align: center;
+      font-size: 13px;
+      font-weight: 650;
+      overflow-wrap: anywhere;
+    }
+
+    .segmented label:last-child span {
+      border-right: 0;
+    }
+
+    .segmented input:checked + span {
+      background: #eaf2fd;
+      color: var(--accent-dark);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+
+    .check-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 14px;
+    }
+
+    .check-row {
+      min-height: 38px;
+      display: flex;
+      align-items: flex-start;
+      gap: 9px;
+      color: #394452;
+    }
+
+    .check-row input {
+      width: 18px;
+      height: 18px;
+      min-height: 18px;
+      margin: 2px 0 0;
+      accent-color: var(--accent);
+      flex: 0 0 auto;
+    }
+
+    .notice {
+      margin-top: 14px;
+      padding: 11px 12px;
+      border-left: 3px solid var(--warning);
+      border-radius: 4px;
+      background: var(--warning-bg);
+      color: #704900;
+      font-size: 13px;
+    }
+
+    .notice.danger {
+      border-left-color: var(--danger);
+      background: var(--danger-bg);
+      color: #842018;
+    }
+
+    .actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .actions .primary-button {
+      min-width: 150px;
+    }
+
+    .summary-panel {
+      position: sticky;
+      top: 92px;
+    }
+
+    .summary-body {
+      padding: 18px;
+    }
+
+    .summary-list {
+      margin: 0;
+      display: grid;
+      gap: 0;
+    }
+
+    .summary-item {
+      min-height: 44px;
+      padding: 9px 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .summary-item:last-child {
+      border-bottom: 0;
+    }
+
+    .summary-item dt {
+      color: var(--muted);
+    }
+
+    .summary-item dd {
+      margin: 0;
+      font-weight: 700;
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .boundary {
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px solid #edc26c;
+      border-radius: 6px;
+      background: var(--warning-bg);
+      color: #704900;
+      font-size: 13px;
+    }
+
+    .boundary strong {
+      display: block;
+      margin-bottom: 4px;
+    }
+
+    .guide-link {
+      width: 100%;
+      margin-top: 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      color: var(--accent-dark);
+      font-weight: 650;
+      text-decoration: none;
+    }
+
+    .guide-link:hover {
+      background: #eef5ff;
+    }
+
+    .preview-band {
+      margin-top: 20px;
+    }
+
+    .preview-content {
+      padding: 0;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th,
+    td {
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+      text-align: left;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      background: var(--surface-muted);
+      color: #46515f;
+      font-weight: 700;
+    }
+
+    td.product-id {
+      min-width: 260px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .pill {
+      display: inline-flex;
+      min-height: 24px;
+      padding: 2px 8px;
+      align-items: center;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pill.ok {
+      background: var(--success-bg);
+      color: var(--success);
+    }
+
+    .pill.warn {
+      background: var(--warning-bg);
+      color: var(--warning);
+    }
+
+    .empty-state {
+      min-height: 150px;
+      padding: 24px;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .command-panel {
+      margin-top: 20px;
+    }
+
+    .command-content {
+      padding: 18px;
+    }
+
+    .copy-status {
+      min-height: 22px;
+      margin-top: 8px;
+      color: var(--success);
+      font-size: 13px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    @media (max-width: 980px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-panel {
+        position: static;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .header-inner,
+      main {
+        width: min(100% - 20px, 1440px);
+      }
+
+      .header-inner {
+        min-height: 76px;
+        align-items: flex-start;
+        padding: 10px 0;
+      }
+
+      .header-status {
+        max-width: 150px;
+      }
+
+      .field-grid,
+      .check-list {
+        grid-template-columns: 1fr;
+      }
+
+      .segmented {
+        grid-auto-flow: row;
+        grid-auto-rows: minmax(40px, auto);
+      }
+
+      .segmented span {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .segmented label:last-child span {
+        border-bottom: 0;
+      }
+
+      .file-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+      }
+
+      .file-meta {
+        display: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-inner">
+      <div class="brand">
+        <img src="AppleParty/AppleParty/Resources/Assets.xcassets/AppIcon.appiconset/icon-128.png" alt="AppleParty">
+        <div>
+          <strong>AppStore 商品操作台</strong>
+          <span>AppStore-updata</span>
+        </div>
+      </div>
+      <div class="header-status" aria-label="页面状态">
+        <span class="status-tag">离线页面</span>
+        <span class="status-tag">不读取密钥</span>
+        <span class="status-tag">不直接上传</span>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="workspace">
+      <section class="panel" aria-labelledby="console-title">
+        <div class="panel-header">
+          <div>
+            <h1 id="console-title">生成操作指令</h1>
+            <p>选择本次商品、文件和写入范围</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <h2 class="step-title"><span class="step-number">1</span>选择 Excel</h2>
+          <div id="drop-zone" class="drop-zone">
+            <div>
+              <p>拖入一个或多个 `.xlsx`，或从本机选择</p>
+              <label class="file-button" for="file-input">选择文件</label>
+              <input id="file-input" class="file-input" type="file" accept=".xlsx" multiple>
+            </div>
+          </div>
+          <div id="file-list" class="file-list" aria-live="polite"></div>
+        </div>
+
+        <div class="step">
+          <h2 class="step-title"><span class="step-number">2</span>设置商品</h2>
+          <div class="field-grid">
+            <div class="field full">
+              <span class="field-label">商品类型</span>
+              <div class="segmented" role="radiogroup" aria-label="商品类型">
+                <label><input type="radio" name="product-type" value="bag" checked><span>金币包</span></label>
+                <label><input type="radio" name="product-type" value="coin"><span>金币</span></label>
+                <label><input type="radio" name="product-type" value="vip"><span>会员</span></label>
+                <label><input type="radio" name="product-type" value="batch"><span>整批 Excel</span></label>
+              </div>
+            </div>
+
+            <div id="price-field" class="field">
+              <label for="price">首周价或售价（USD）</label>
+              <input id="price" type="text" inputmode="decimal" value="9.99" autocomplete="off">
+            </div>
+
+            <div id="tier-field" class="field">
+              <label for="tier">权益档位</label>
+              <select id="tier">
+                <option value="1">档位 1</option>
+                <option value="2">档位 2</option>
+                <option value="3">档位 3</option>
+                <option value="4">档位 4</option>
+                <option value="5">档位 5</option>
+              </select>
+            </div>
+
+            <div id="period-field" class="field hidden">
+              <label for="period">会员周期</label>
+              <select id="period">
+                <option value="week">周</option>
+                <option value="month">月</option>
+                <option value="quarter">季</option>
+                <option value="year">年</option>
+              </select>
+            </div>
+
+            <div class="field full">
+              <span class="field-label">生成范围</span>
+              <div class="check-list">
+                <label id="normal-row" class="check-row"><input id="include-normal" type="checkbox" checked><span>正常续订</span></label>
+                <label id="abnormal-row" class="check-row"><input id="include-abnormal" type="checkbox" checked><span>异常续订</span></label>
+                <label id="variant-row" class="check-row"><input id="include-variants" type="checkbox" checked><span>稳定价格变体</span></label>
+                <label id="candidate-row" class="check-row"><input id="include-candidates" type="checkbox" checked><span>检查 `.98` 候选</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <h2 class="step-title"><span class="step-number">3</span>选择操作范围</h2>
+          <div class="field-grid">
+            <div class="field full">
+              <div class="segmented" role="radiogroup" aria-label="操作范围">
+                <label><input type="radio" name="action" value="plan"><span>只生成方案</span></label>
+                <label><input type="radio" name="action" value="edit" checked><span>修改本地 Excel</span></label>
+                <label><input type="radio" name="action" value="backend"><span>写运营后台</span></label>
+                <label><input type="radio" name="action" value="appstore"><span>上传 App Store</span></label>
+              </div>
+            </div>
+
+            <div id="review-option" class="field full hidden">
+              <label class="check-row"><input id="submit-review" type="checkbox"><span>上传成功后提交订阅审核</span></label>
+            </div>
+
+            <div id="mutation-confirmation" class="field full hidden">
+              <label class="check-row"><input id="confirm-mutation" type="checkbox"><span>我确认本次允许执行外部写入；执行前仍需核对目标 App 和清单</span></label>
+            </div>
+          </div>
+
+          <div id="action-notice" class="notice">默认修改本地 Excel，完成结构化校验，不上传、不提交 Git。</div>
+
+          <div class="actions">
+            <button id="generate-button" class="primary-button" type="button">生成完整指令</button>
+            <button id="reset-button" class="secondary-button" type="button">重置参数</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel summary-panel" aria-labelledby="summary-title">
+        <div class="panel-header">
+          <div>
+            <h2 id="summary-title">本次清单</h2>
+            <p>生成前的范围确认</p>
+          </div>
+        </div>
+        <div class="summary-body">
+          <dl class="summary-list">
+            <div class="summary-item"><dt>商品</dt><dd id="summary-product">金币包</dd></div>
+            <div class="summary-item"><dt>价格</dt><dd id="summary-price">9.99</dd></div>
+            <div class="summary-item"><dt>文件</dt><dd id="summary-files">未选择</dd></div>
+            <div class="summary-item"><dt>操作</dt><dd id="summary-action">修改本地 Excel</dd></div>
+            <div class="summary-item"><dt>外部写入</dt><dd id="summary-mutation">否</dd></div>
+          </dl>
+          <div class="boundary">
+            <strong>安全边界</strong>
+            API Key、`.p8` 和 curl 不应填入本页面。真实上传需通过 AppleParty.app 或明确授权的本地后端执行。
+          </div>
+          <a class="guide-link" href="上传操作说明.md">打开上传操作说明</a>
+        </div>
+      </aside>
+    </div>
+
+    <section class="panel preview-band" aria-labelledby="preview-title">
+      <div class="panel-header">
+        <div>
+          <h2 id="preview-title">价格与 Product ID 预览</h2>
+          <p id="preview-subtitle">按当前项目规则展开</p>
+        </div>
+      </div>
+      <div id="preview-content" class="preview-content"></div>
+    </section>
+
+    <section class="panel command-panel" aria-labelledby="command-title">
+      <div class="panel-header">
+        <div>
+          <h2 id="command-title">Codex 指令</h2>
+          <p>生成后复制到本项目的 Codex 对话</p>
+        </div>
+        <button id="copy-button" class="secondary-button" type="button">复制指令</button>
+      </div>
+      <div class="command-content">
+        <textarea id="command-output" readonly spellcheck="false" aria-label="生成的 Codex 指令"></textarea>
+        <div id="copy-status" class="copy-status" aria-live="polite"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const state = {
+      files: [],
+      productType: "bag",
+      action: "edit"
+    };
+
+    const labels = {
+      productType: {
+        bag: "金币包",
+        coin: "金币",
+        vip: "会员",
+        batch: "整批 Excel"
+      },
+      action: {
+        plan: "只生成方案",
+        edit: "修改本地 Excel",
+        backend: "写运营后台",
+        appstore: "上传 App Store"
+      },
+      period: {
+        week: "周",
+        month: "月",
+        quarter: "季",
+        year: "年"
+      }
+    };
+
+    const coinRights = {
+      "5.99": { suffix: "1", coins: "1,200" },
+      "7.99": { suffix: "1", coins: "1,200" },
+      "9.99": { suffix: "1", coins: "1,200" },
+      "11.99": { suffix: "1", coins: "2,800" },
+      "15.99": { suffix: "1", coins: "2,800" },
+      "19.99": { suffix: "1", coins: "2,800" },
+      "17.99": { suffix: "1", coins: "4,800" },
+      "23.99": { suffix: "1", coins: "4,800" },
+      "29.99": { suffix: "1", coins: "4,800", secondSuffix: "2", secondCoins: "9,000" },
+      "39.99": { suffix: "1", coins: "9,000" },
+      "49.99": { suffix: "1", coins: "9,000" },
+      "59.99": { suffix: "1", coins: "24,000" },
+      "79.99": { suffix: "1", coins: "24,000" },
+      "99.99": { suffix: "1", coins: "24,000" }
+    };
+
+    const elements = {
+      dropZone: document.getElementById("drop-zone"),
+      fileInput: document.getElementById("file-input"),
+      fileList: document.getElementById("file-list"),
+      price: document.getElementById("price"),
+      tier: document.getElementById("tier"),
+      period: document.getElementById("period"),
+      priceField: document.getElementById("price-field"),
+      tierField: document.getElementById("tier-field"),
+      periodField: document.getElementById("period-field"),
+      normalRow: document.getElementById("normal-row"),
+      abnormalRow: document.getElementById("abnormal-row"),
+      variantRow: document.getElementById("variant-row"),
+      candidateRow: document.getElementById("candidate-row"),
+      includeNormal: document.getElementById("include-normal"),
+      includeAbnormal: document.getElementById("include-abnormal"),
+      includeVariants: document.getElementById("include-variants"),
+      includeCandidates: document.getElementById("include-candidates"),
+      reviewOption: document.getElementById("review-option"),
+      submitReview: document.getElementById("submit-review"),
+      mutationConfirmation: document.getElementById("mutation-confirmation"),
+      confirmMutation: document.getElementById("confirm-mutation"),
+      actionNotice: document.getElementById("action-notice"),
+      generateButton: document.getElementById("generate-button"),
+      resetButton: document.getElementById("reset-button"),
+      copyButton: document.getElementById("copy-button"),
+      commandOutput: document.getElementById("command-output"),
+      copyStatus: document.getElementById("copy-status"),
+      previewContent: document.getElementById("preview-content"),
+      previewSubtitle: document.getElementById("preview-subtitle"),
+      summaryProduct: document.getElementById("summary-product"),
+      summaryPrice: document.getElementById("summary-price"),
+      summaryFiles: document.getElementById("summary-files"),
+      summaryAction: document.getElementById("summary-action"),
+      summaryMutation: document.getElementById("summary-mutation")
+    };
+
+    function moneyToCents(value) {
+      const normalized = String(value).trim();
+      if (!/^\d+(?:\.\d{1,2})?$/.test(normalized)) return null;
+      const [whole, fraction = ""] = normalized.split(".");
+      return Number(whole) * 100 + Number((fraction + "00").slice(0, 2));
+    }
+
+    function centsToMoney(cents) {
+      return `${Math.floor(cents / 100)}.${String(cents % 100).padStart(2, "0")}`;
+    }
+
+    function normalBagRenewal(cents) {
+      if (cents === 29) return 2099;
+      const ending = cents % 100;
+      const plusTwenty = cents + 2000;
+      if (ending === 69) return Math.floor(plusTwenty / 100) * 100 + 90;
+      if (ending === 90 && plusTwenty > 10000) {
+        return Math.floor(plusTwenty / 100) * 100 + 99;
+      }
+      return plusTwenty;
+    }
+
+    function abnormalBagRenewal(cents) {
+      const ending = cents % 100;
+      const isNinety = ending === 90;
+      if (cents >= 19990) return isNinety ? 29990 : 29999;
+      if (cents >= 8990) return isNinety ? 19990 : 19999;
+      return isNinety ? 9990 : 9999;
+    }
+
+    function vipAbnormalRenewal(period) {
+      if (period === "quarter") return "99.99 或 199.99";
+      if (period === "year") return "199.99 或 299.99";
+      return "99.99";
+    }
+
+    function fileSize(size) {
+      if (!Number.isFinite(size) || size <= 0) return "已选择";
+      if (size < 1024 * 1024) return `${Math.max(1, Math.round(size / 1024))} KB`;
+      return `${(size / 1024 / 1024).toFixed(1)} MB`;
+    }
+
+    function addFiles(fileList) {
+      const incoming = Array.from(fileList).filter((file) => file.name.toLowerCase().endsWith(".xlsx"));
+      const byKey = new Map(state.files.map((file) => [`${file.name}:${file.size}`, file]));
+      incoming.forEach((file) => byKey.set(`${file.name}:${file.size}`, file));
+      state.files = Array.from(byKey.values());
+      renderFiles();
+      updateAll();
+    }
+
+    function renderFiles() {
+      elements.fileList.replaceChildren();
+      state.files.forEach((file, index) => {
+        const row = document.createElement("div");
+        row.className = "file-row";
+
+        const name = document.createElement("span");
+        name.className = "file-name";
+        name.textContent = file.name;
+
+        const meta = document.createElement("span");
+        meta.className = "file-meta";
+        meta.textContent = fileSize(file.size);
+
+        const remove = document.createElement("button");
+        remove.className = "remove-file";
+        remove.type = "button";
+        remove.textContent = "×";
+        remove.title = `移除 ${file.name}`;
+        remove.setAttribute("aria-label", `移除 ${file.name}`);
+        remove.addEventListener("click", () => {
+          state.files.splice(index, 1);
+          renderFiles();
+          updateAll();
+        });
+
+        row.append(name, meta, remove);
+        elements.fileList.append(row);
+      });
+    }
+
+    function selectedRadio(name) {
+      return document.querySelector(`input[name="${name}"]:checked`).value;
+    }
+
+    function buildBagRows() {
+      const base = moneyToCents(elements.price.value);
+      if (base === null) return [];
+
+      const candidates = [{ cents: base, source: "基准", supported: true }];
+      if (elements.includeVariants.checked) {
+        [
+          { delta: -9, source: "减 0.09" },
+          { delta: -100, source: "减 1.00" },
+          { delta: -109, source: "减 1.09" }
+        ].forEach((variant) => {
+          if (base + variant.delta > 0) {
+            candidates.push({ cents: base + variant.delta, source: variant.source, supported: true });
+          }
+        });
+      }
+      if (elements.includeCandidates.checked) {
+        [
+          { delta: -1, source: "`.98` 候选" },
+          { delta: -101, source: "下一档 `.98` 候选" }
+        ].forEach((variant) => {
+          if (base + variant.delta > 0) {
+            candidates.push({ cents: base + variant.delta, source: variant.source, supported: false });
+          }
+        });
+      }
+
+      const unique = new Map();
+      candidates.forEach((candidate) => unique.set(candidate.cents, candidate));
+
+      return Array.from(unique.values()).map((candidate) => {
+        const first = centsToMoney(candidate.cents);
+        const normal = candidate.supported && elements.includeNormal.checked
+          ? centsToMoney(normalBagRenewal(candidate.cents))
+          : "-";
+        const abnormal = candidate.supported && elements.includeAbnormal.checked
+          ? centsToMoney(abnormalBagRenewal(candidate.cents))
+          : "-";
+        const ids = [];
+        if (normal !== "-") ids.push(`dinreel.bag_week_${first}_${normal}_1`);
+        if (abnormal !== "-") ids.push(`dinreel.bag_week_${first}_${abnormal}_1`);
+        return {
+          first,
+          normal,
+          abnormal,
+          ids,
+          source: candidate.source,
+          supported: candidate.supported
+        };
+      });
+    }
+
+    function buildCoinRows() {
+      const cents = moneyToCents(elements.price.value);
+      if (cents === null) return [];
+      const price = centsToMoney(cents);
+      const rights = coinRights[price];
+      const rows = [{
+        price,
+        id: `dinreel.coins_${price}_${rights?.suffix || "1"}`,
+        coins: rights?.coins || "待确认",
+        supported: Boolean(rights)
+      }];
+      if (rights?.secondSuffix) {
+        rows.push({
+          price,
+          id: `dinreel.coins_${price}_${rights.secondSuffix}`,
+          coins: rights.secondCoins,
+          supported: true
+        });
+      }
+      return rows;
+    }
+
+    function buildVipRows() {
+      const cents = moneyToCents(elements.price.value);
+      if (cents === null) return [];
+      const price = centsToMoney(cents);
+      const renewal = centsToMoney(cents + 2000);
+      return [3, 4, 5, 6].map((suffix) => ({
+        price,
+        renewal,
+        abnormal: vipAbnormalRenewal(elements.period.value),
+        id: `dinreel.vip_${elements.period.value}_${price}_${renewal}_${suffix}`,
+        supported: true
+      }));
+    }
+
+    function statusPill(ok, okText = "按规则生成", warnText = "价格点不支持") {
+      const span = document.createElement("span");
+      span.className = `pill ${ok ? "ok" : "warn"}`;
+      span.textContent = ok ? okText : warnText;
+      return span;
+    }
+
+    function renderPreview() {
+      elements.previewContent.replaceChildren();
+      if (state.productType === "batch") {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.textContent = state.files.length
+          ? `将按 ${state.files.length} 个工作簿的现有商品逐页校验，不从单一价格推导。`
+          : "选择工作簿后，将生成整批校验与操作指令。";
+        elements.previewContent.append(empty);
+        elements.previewSubtitle.textContent = "整批模式不从单一价格推导";
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const tbody = document.createElement("tbody");
+
+      if (state.productType === "bag") {
+        thead.innerHTML = "<tr><th>首周价</th><th>正常续订</th><th>异常续订</th><th>Product ID</th><th>状态</th></tr>";
+        buildBagRows().forEach((row) => {
+          const tr = document.createElement("tr");
+          const idCell = document.createElement("td");
+          idCell.className = "product-id";
+          idCell.textContent = row.ids.length ? row.ids.join("\n") : "不生成可上传行";
+          const statusCell = document.createElement("td");
+          statusCell.append(statusPill(row.supported, row.source, "USA 无 `.98` 价格点"));
+          [row.first, row.normal, row.abnormal].forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.append(td);
+          });
+          tr.append(idCell, statusCell);
+          tbody.append(tr);
+        });
+        elements.previewSubtitle.textContent = `档位 ${elements.tier.value}，有效项使用 _1`;
+      } else if (state.productType === "coin") {
+        thead.innerHTML = "<tr><th>售价</th><th>Product ID</th><th>最终金币</th><th>状态</th></tr>";
+        buildCoinRows().forEach((row) => {
+          const tr = document.createElement("tr");
+          const price = document.createElement("td");
+          price.textContent = row.price;
+          const id = document.createElement("td");
+          id.className = "product-id";
+          id.textContent = row.id;
+          const coins = document.createElement("td");
+          coins.textContent = row.coins;
+          const status = document.createElement("td");
+          status.append(statusPill(row.supported, "权益已收录", "需确认权益"));
+          tr.append(price, id, coins, status);
+          tbody.append(tr);
+        });
+        elements.previewSubtitle.textContent = "金币无续订和首周优惠";
+      } else {
+        thead.innerHTML = "<tr><th>首周价</th><th>正常续订</th><th>异常锚点</th><th>Product ID</th><th>状态</th></tr>";
+        buildVipRows().forEach((row) => {
+          const tr = document.createElement("tr");
+          const values = [row.price, row.renewal, row.abnormal];
+          values.forEach((value) => {
+            const td = document.createElement("td");
+            td.textContent = value;
+            tr.append(td);
+          });
+          const id = document.createElement("td");
+          id.className = "product-id";
+          id.textContent = row.id;
+          const status = document.createElement("td");
+          status.append(statusPill(true, `后缀 ${row.id.slice(-1)}`));
+          tr.append(id, status);
+          tbody.append(tr);
+        });
+        elements.previewSubtitle.textContent = `${labels.period[elements.period.value]}会员，生成 _3 / _4 / _5 / _6`;
+      }
+
+      table.append(thead, tbody);
+      elements.previewContent.append(table);
+    }
+
+    function selectedFileNames() {
+      return state.files.length ? state.files.map((file) => file.name).join("、") : "尚未选择；请先根据商品类型确认目标工作簿";
+    }
+
+    function actionInstruction() {
+      if (state.action === "plan") {
+        return "只输出生成计划和冲突清单，不修改文件，不执行外部写入，不提交 Git。";
+      }
+      if (state.action === "edit") {
+        return "直接修改所选本地 Excel，保留样式和未涉及行；完成结构化校验。不要上传，不要执行后台写入，不要提交 Git。";
+      }
+      if (state.action === "backend") {
+        return elements.confirmMutation.checked
+          ? "我明确授权本次写入运营后台。先等待我在对话中提供当前项目有效 curl，再校验 dd_appId、全量分页数据和执行清单；凭证不得落盘。"
+          : "先生成运营后台写入计划，不执行接口。等待我提供当前项目有效 curl 并再次确认后再写入。";
+      }
+      return elements.confirmMutation.checked
+        ? `我授权本次上传到 App Store Connect。先在项目根目录生成待确认 Excel 并展示目标 App、创建/更新清单和价格点校验结果；等我确认这份 Excel 后再执行。${elements.submitReview.checked ? "上传成功后提交订阅审核。" : "不要提交审核。"}`
+        : "先在项目根目录生成待确认 Excel 和上传计划，不执行上传。等待我核对目标 App、商品清单和密钥权限后再确认。";
+    }
+
+    function productInstruction() {
+      const price = moneyToCents(elements.price.value);
+      const normalizedPrice = price === null ? elements.price.value.trim() : centsToMoney(price);
+      if (state.productType === "batch") {
+        return `处理整批 Excel：${selectedFileNames()}。按商品类型分别应用金币、金币包和会员规则。`;
+      }
+      if (state.productType === "coin") {
+        return `生成或检查售价 ${normalizedPrice} USD 的金币商品，档位 ${elements.tier.value}。自动处理已确认权益和同价不同权益的后缀。`;
+      }
+      if (state.productType === "vip") {
+        const scopes = [];
+        if (elements.includeNormal.checked) scopes.push("正常续订");
+        if (elements.includeAbnormal.checked) scopes.push("异常续订");
+        if (elements.includeVariants.checked) scopes.push("有效价格变体");
+        return `生成或检查${labels.period[elements.period.value]}会员，首周价 ${normalizedPrice} USD，范围：${scopes.join("、") || "仅当前价格"}。每个有效组合生成 _3/_4/_5/_6。`;
+      }
+      const scopes = [];
+      if (elements.includeNormal.checked) scopes.push("正常续订");
+      if (elements.includeAbnormal.checked) scopes.push("异常续订");
+      if (elements.includeVariants.checked) scopes.push("稳定价格变体");
+      if (elements.includeCandidates.checked) scopes.push(".98 候选价格点检查");
+      return `生成或检查首周价 ${normalizedPrice} USD 的周金币包，权益档位 ${elements.tier.value}，范围：${scopes.join("、") || "仅当前价格"}。有效组合使用 _1。`;
+    }
+
+    function buildCommand() {
+      const lines = [
+        "按项目根目录 AGENTS.md 的支付项工作流执行。",
+        "",
+        productInstruction(),
+        `目标文件：${selectedFileNames()}。`,
+        actionInstruction(),
+        "",
+        "必须同步所有关联页和后台映射；精确校验 Product ID、Group Name、两位价格、价格点、首周优惠、权益、后缀、审核备注、地区和跨页集合。",
+        "发现不支持价格、重复、正常/异常重合或跨权益档冲突时，跳过冲突项并逐条报告，不能猜测或使用近似价格。",
+        "最终报告候选数、有效数、新增/更新数、已存在数、跳过数、冲突数、失败数，以及实际运行的校验。"
+      ];
+      return lines.join("\n");
+    }
+
+    function updateTypeControls() {
+      const isBatch = state.productType === "batch";
+      const isVip = state.productType === "vip";
+      const isCoin = state.productType === "coin";
+      elements.priceField.classList.toggle("hidden", isBatch);
+      elements.tierField.classList.toggle("hidden", isBatch || isVip);
+      elements.periodField.classList.toggle("hidden", !isVip);
+      elements.normalRow.classList.toggle("hidden", isBatch || isCoin);
+      elements.abnormalRow.classList.toggle("hidden", isBatch || isCoin);
+      elements.variantRow.classList.toggle("hidden", isBatch || isCoin);
+      elements.candidateRow.classList.toggle("hidden", state.productType !== "bag");
+    }
+
+    function updateActionControls() {
+      const isExternal = state.action === "backend" || state.action === "appstore";
+      elements.mutationConfirmation.classList.toggle("hidden", !isExternal);
+      elements.reviewOption.classList.toggle("hidden", state.action !== "appstore");
+      elements.actionNotice.classList.toggle("danger", isExternal);
+      if (state.action === "plan") {
+        elements.actionNotice.textContent = "只生成方案和校验清单，不修改文件，不执行任何写入。";
+      } else if (state.action === "edit") {
+        elements.actionNotice.textContent = "默认修改本地 Excel，完成结构化校验，不上传、不提交 Git。";
+      } else if (state.action === "backend") {
+        elements.actionNotice.textContent = "运营后台写入需要在 Codex 对话中另行提供当前项目有效 curl，并在执行前校验目标 App。";
+      } else {
+        elements.actionNotice.textContent = "App Store 上传需要 AppleParty.app、本机安全保存的 ASC API 密钥和明确的目标 App。";
+      }
+    }
+
+    function updateSummary() {
+      elements.summaryProduct.textContent = labels.productType[state.productType];
+      elements.summaryPrice.textContent = state.productType === "batch" ? "按工作簿" : (elements.price.value.trim() || "未填写");
+      elements.summaryFiles.textContent = state.files.length ? `${state.files.length} 个` : "未选择";
+      elements.summaryAction.textContent = labels.action[state.action];
+      elements.summaryMutation.textContent = state.action === "backend" || state.action === "appstore"
+        ? (elements.confirmMutation.checked ? "已授权" : "未授权")
+        : "否";
+    }
+
+    function updateAll() {
+      state.productType = selectedRadio("product-type");
+      state.action = selectedRadio("action");
+      updateTypeControls();
+      updateActionControls();
+      updateSummary();
+      renderPreview();
+    }
+
+    function generateCommand() {
+      const cents = state.productType === "batch" ? 0 : moneyToCents(elements.price.value);
+      if (state.productType !== "batch" && cents === null) {
+        elements.price.focus();
+        elements.copyStatus.textContent = "请输入有效价格，例如 9.99。";
+        return;
+      }
+      elements.commandOutput.value = buildCommand();
+      elements.copyStatus.textContent = "指令已生成。";
+      elements.commandOutput.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+
+    async function copyCommand() {
+      if (!elements.commandOutput.value) generateCommand();
+      const value = elements.commandOutput.value;
+      if (!value) return;
+      try {
+        await navigator.clipboard.writeText(value);
+        elements.copyStatus.textContent = "已复制，可以粘贴到 Codex。";
+      } catch (error) {
+        elements.commandOutput.focus();
+        elements.commandOutput.select();
+        const copied = document.execCommand("copy");
+        elements.copyStatus.textContent = copied ? "已复制，可以粘贴到 Codex。" : "请手动复制已选中的指令。";
+      }
+    }
+
+    function resetForm() {
+      document.querySelector('input[name="product-type"][value="bag"]').checked = true;
+      document.querySelector('input[name="action"][value="edit"]').checked = true;
+      elements.price.value = "9.99";
+      elements.tier.value = "1";
+      elements.period.value = "week";
+      elements.includeNormal.checked = true;
+      elements.includeAbnormal.checked = true;
+      elements.includeVariants.checked = true;
+      elements.includeCandidates.checked = true;
+      elements.submitReview.checked = false;
+      elements.confirmMutation.checked = false;
+      elements.commandOutput.value = "";
+      elements.copyStatus.textContent = "";
+      state.files = [];
+      elements.fileInput.value = "";
+      renderFiles();
+      updateAll();
+    }
+
+    elements.fileInput.addEventListener("change", (event) => addFiles(event.target.files));
+    ["dragenter", "dragover"].forEach((eventName) => {
+      elements.dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        elements.dropZone.classList.add("is-dragging");
+      });
+    });
+    ["dragleave", "drop"].forEach((eventName) => {
+      elements.dropZone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        elements.dropZone.classList.remove("is-dragging");
+      });
+    });
+    elements.dropZone.addEventListener("drop", (event) => addFiles(event.dataTransfer.files));
+
+    document.querySelectorAll('input[name="product-type"]').forEach((input) => input.addEventListener("change", updateAll));
+    document.querySelectorAll('input[name="action"]').forEach((input) => input.addEventListener("change", updateAll));
+    [
+      elements.price,
+      elements.tier,
+      elements.period,
+      elements.includeNormal,
+      elements.includeAbnormal,
+      elements.includeVariants,
+      elements.includeCandidates,
+      elements.submitReview,
+      elements.confirmMutation
+    ].forEach((input) => input.addEventListener("input", updateAll));
+
+    elements.generateButton.addEventListener("click", generateCommand);
+    elements.copyButton.addEventListener("click", copyCommand);
+    elements.resetButton.addEventListener("click", resetForm);
+
+    updateAll();
+    elements.commandOutput.value = buildCommand();
+  </script>
+</body>
+</html>
